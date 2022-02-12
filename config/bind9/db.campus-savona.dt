@@ -1,0 +1,8 @@
+$TTL 600
+@ IN SOA ns.campus-savona.dt. root.campus-savona.dt. ( 1 1h 1h 10m 1h )
+@ IN NS  ns.campus-savona.dt.
+@       IN      A     192.168.100.80
+ns      IN      A     192.168.100.53
+
+bind9   IN      CNAME ns
+www     IN      CNAME @

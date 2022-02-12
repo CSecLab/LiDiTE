@@ -1,0 +1,34 @@
+version: '3'
+services:
+  # Ditto
+  ditto:
+    depends_on: ["mongodb"]
+    build:
+      context: ./ditto-binpack
+    image: registry.csec.dibris.unige.it:5000/fdt-ditto
+    restart: on-failure
+    networks:
+      a25_ind_enterprise: {}
+    environment:
+      INSTANCE_INDEX: "1"
+      MONGO_DB_HOSTNAME: mongodb
+      BIND_HOSTNAME: 0.0.0.0
+      ENABLE_PRE_AUTHENTICATION: "true"
+      DEVOPS_PASSWORD: password
+      JAVA_OPTS: >-
+        -XX:+UseStringDeduplication
+        -Xms1m -XX:MinHeapFreeRatio=1 -XX:MaxHeapFreeRatio=20
+  # Ditto Frontend
+  frontend:
+    build:
+      context: ./ditto-nginx
+      args:
+        #NGINX_VERSION: 1.19.10
+        NGINX_VERSION: 1.21.4
+    image: registry.csec.dibris.unige.it:5000/fdt-ditto-nginx
+    depends_on: ["ditto"]
+    networks:
+      a25_ind_enterprise:
+        ipv4_address: 172.16.10.99
+      zzz999_management:
+        ipv4_address: 10.0.0.20

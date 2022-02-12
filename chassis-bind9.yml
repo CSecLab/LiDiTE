@@ -1,0 +1,13 @@
+version: "3"
+services:
+  bind9:
+    build: ./bind9
+    image: registry.csec.dibris.unige.it:5000/fdt-bind9
+    hostname: ns
+    volumes:
+      - ./config/bind9/db.campus-savona.dt:/etc/bind/db.campus-savona.dt:ro
+      - ./config/bind9/db.campus-savona.local:/etc/bind/db.campus-savona.local:ro
+      - ./config/bind9/named.conf.local:/etc/bind/named.conf.local:ro
+    networks:
+      z95_dmz:
+        ipv4_address: 192.168.100.53

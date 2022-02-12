@@ -1,0 +1,671 @@
+diff --git a/WebContent/WEB-INF/jsp/dataSourceEdit/editHttpRetriever.jsp b/WebContent/WEB-INF/jsp/dataSourceEdit/editHttpRetriever.jsp
+index f75337dba..b8587e0d1 100644
+--- a/WebContent/WEB-INF/jsp/dataSourceEdit/editHttpRetriever.jsp
++++ b/WebContent/WEB-INF/jsp/dataSourceEdit/editHttpRetriever.jsp
+@@ -48,7 +48,7 @@
+   function testValueParams() {
+       startImageFader("valueTestImg", true);
+       hide("valueTestRow");
+-      DataSourceEditDwr.testHttpRetrieverValueParams($get("url"), $get("timeoutSeconds"), $get("retries"),
++      DataSourceEditDwr.testHttpRetrieverValueParams($get("url"), $get("username"), $get("password"), $get("timeoutSeconds"), $get("retries"),
+               $get("valueRegex"), $get("dataTypeId"), $get("valueFormat"), testValueParamsCB);
+   }
+   
+@@ -61,7 +61,7 @@
+   function testTimeParams() {
+       startImageFader("timeTestImg", true);
+       hide("timeTestRow");
+-      DataSourceEditDwr.testHttpRetrieverTimeParams($get("url"), $get("timeoutSeconds"), $get("retries"),
++      DataSourceEditDwr.testHttpRetrieverTimeParams($get("url"), $get("username"), $get("password"), $get("timeoutSeconds"), $get("retries"),
+               $get("timeRegex"), $get("timeFormat"), testTimeParamsCB);
+   }
+   
+@@ -71,13 +71,6 @@
+       $set("timeTestResult", result);
+   }
+ 
+-  function saveDataSourceImplOld(){
+-  DataSourceEditDwr.saveHttpRetrieverDataSource($get("dataSourceName"), $get("dataSourceXid"),
+-                $get("updatePeriods"), $get("updatePeriodType"), $get("url"), $get("timeoutSeconds"), $get("retries"),
+-                $get("stop"),
+-                saveDataSourceCB);
+-  }
+-
+   function saveDataSourceImpl() {
+       DataSourceEditDwr.saveHttpRetrieverDataSourceWithReactivationOptions(
+                   $get("dataSourceName"),
+@@ -85,6 +78,8 @@
+                   $get("updatePeriods"),
+                   $get("updatePeriodType"),
+                   $get("url"),
++                  $get("username"),
++                  $get("password"),
+                   $get("timeoutSeconds"),
+                   $get("retries"),
+                   editDSNewUI.stop,
+@@ -94,6 +89,17 @@
+                   saveDataSourceCB
+       );
+   }
++  
++  function openURL() {
++  	var url = $get('url');
++  	if ($get("username") && $get("password")) {
++  		var urlParts = url.split("://", 2);
++  		if (urlParts.length === 2) {
++  			url = urlParts[0] + "://" + $get("username") + ":" + $get("password") + "@" + urlParts[1];
++  		}
++  	}
++  	window.open(url, 'httpRetrieverTarget');
++  }
+ 
+   function appendPointListColumnFunctions(pointListColumnHeaders, pointListColumnFunctions) {
+       pointListColumnHeaders[pointListColumnHeaders.length] = "<fmt:message key="dsEdit.httpRetriever.regex"/>";
+@@ -156,7 +162,7 @@
+         <tr>
+           <td class="formLabelRequired"><fmt:message key="dsEdit.updatePeriod"/></td>
+           <td class="formField">
+-            <input type="text" id="updatePeriods" value="${dataSource.updatePeriods}" class="formShort"/>
++            <input type="number" id="updatePeriods" value="${dataSource.updatePeriods}" class="formShort"/>
+             <sst:select id="updatePeriodType" value="${dataSource.updatePeriodType}">
+               <tag:timePeriodOptions sst="true" ms="true" s="true" min="true" h="true"/>
+             </sst:select>
+@@ -167,7 +173,15 @@
+           <td class="formLabelRequired"><fmt:message key="dsEdit.httpRetriever.url"/></td>
+           <td class="formField">
+             <input id="url" type="text" value="${dataSource.url}" class="formLong"/>
+-            <tag:img png="bullet_go" onclick="window.open($get('url'), 'httpRetrieverTarget')" title="dsEdit.httpRetriever.openUrl"/>
++            <tag:img png="bullet_go" onclick="openURL()" title="dsEdit.httpRetriever.openUrl"/>
++          </td>
++        </tr>
++        
++        <tr>
++          <td class="formLabelRequired"><fmt:message key="dsEdit.httpRetriever.credentials"/></td>
++          <td class="formField">
++            <fmt:message key="dsEdit.httpRetriever.username"/> <input type="text" id="username" class="formShort"/>
++            <fmt:message key="dsEdit.httpRetriever.password"/> <input type="password" id="password" class="formShort"/>
+           </td>
+         </tr>
+         
+diff --git a/src/com/serotonin/mango/rt/dataSource/http/HttpRetrieverDataSourceRT.java b/src/com/serotonin/mango/rt/dataSource/http/HttpRetrieverDataSourceRT.java
+index 20c4bbb27..9f0376cd5 100644
+--- a/src/com/serotonin/mango/rt/dataSource/http/HttpRetrieverDataSourceRT.java
++++ b/src/com/serotonin/mango/rt/dataSource/http/HttpRetrieverDataSourceRT.java
+@@ -18,6 +18,8 @@
+  */
+ package com.serotonin.mango.rt.dataSource.http;
+ 
++import java.util.Base64;
++
+ import org.apache.commons.httpclient.HttpClient;
+ import org.apache.commons.httpclient.HttpStatus;
+ import org.apache.commons.httpclient.methods.GetMethod;
+@@ -41,11 +43,13 @@
+ import org.scada_lts.ds.reactivation.ReactivationConnectHttpRetriever;
+ import org.scada_lts.ds.state.SleepStateDs;
+ import org.scada_lts.ds.state.StopChangeEnableStateDs;
++import org.scada_lts.serorepl.utils.StringUtils;
+ 
+ /**
+  * @author Matthew Lohbihler
+  */
+ public class HttpRetrieverDataSourceRT extends PollingDataSource {
++    
+     private static final int READ_LIMIT = 1024 * 1024; // One MB
+ 
+     public static final int DATA_RETRIEVAL_FAILURE_EVENT = 1;
+@@ -74,7 +78,7 @@ public void setPointValue(DataPointRT dataPoint, PointValueTime valueTime, SetPo
+     protected void doPoll(long time) {
+         String data;
+         try {
+-            data = getData(vo.getUrl(), vo.getTimeoutSeconds(), vo.getRetries(), vo.isStop(), vo.getReactivation());
++            data = getData(vo.getUrl(), vo.getUsername(), vo.getPassword(), vo.getTimeoutSeconds(), vo.getRetries(), vo.isStop(), vo.getReactivation());
+         } catch (Exception e) {
+             LocalizableMessage lm;
+             if (e instanceof LocalizableException)
+@@ -121,15 +125,29 @@ protected void doPoll(long time) {
+         else
+             returnToNormal(PARSE_EXCEPTION_EVENT, time);
+     }
++    
++    private static GetMethod createMethodForClient(String url, String username, String password) {
++	GetMethod method = new GetMethod(url);
++	// Enable authentication if username and password are present
++	if (!(StringUtils.isEmpty(username) || StringUtils.isEmpty(password))) {
++	    // Enable authentication
++	    method.setDoAuthentication(true);
++	    // Add authorization header
++	    byte[] credentials = (username + ':' + password).getBytes();
++	    String headerValue = "Basic " + Base64.getEncoder().encodeToString(credentials);
++	    method.addRequestHeader("Authorization", headerValue);
++	}
++	return method;
++    }
+ 
+-    public static boolean testConnection(String url, int timeoutSeconds, int retries) {
++    public static boolean testConnection(String url, String username, String password, int timeoutSeconds, int retries) {
+         String data = "";
+         for (int i = 0; i <= retries; i++) {
+             HttpClient client = Common.getHttpClient(timeoutSeconds * 1000);
+             GetMethod method = null;
+             LocalizableMessage message;
+             try {
+-                method = new GetMethod(url);
++                method = createMethodForClient(url, username, password);
+                 int responseCode = client.executeMethod(method);
+                 if (responseCode == HttpStatus.SC_OK) {
+                     data = HttpUtils.readResponseBody(method, READ_LIMIT);
+@@ -146,14 +164,14 @@ public static boolean testConnection(String url, int timeoutSeconds, int retries
+         return false;
+     }
+ 
+-    public String getData(String url, int timeoutSeconds, int retries, boolean stop, ReactivationDs r) throws LocalizableException {
++    public String getData(String url, String username, String password, int timeoutSeconds, int retries, boolean stop, ReactivationDs r) throws LocalizableException {
+         String data = "";
+         for (int i = 0; i <= retries; i++) {
+             HttpClient client = Common.getHttpClient(timeoutSeconds * 1000);
+             GetMethod method = null;
+             LocalizableMessage message;
+             try {
+-                method = new GetMethod(url);
++                method = createMethodForClient(url, username, password);
+                 int responseCode = client.executeMethod(method);
+                 if (responseCode == HttpStatus.SC_OK) {
+                     data = HttpUtils.readResponseBody(method, READ_LIMIT);
+@@ -182,18 +200,17 @@ else if (retries == i) {
+         }
+         return data;
+     }
+-
++    
+     @Deprecated
+-    public static String getData(String url, int timeoutSeconds, int retries) throws LocalizableException {
+-        // Try to get the data.
+-        String data;
+-        while (true) {
+-            HttpClient client = Common.getHttpClient(timeoutSeconds * 1000);
++    public static String getData(String url, String username, String password, int timeoutSeconds, int retries) throws LocalizableException {
++	String data;
++	while (true) {
++	    HttpClient client = Common.getHttpClient(timeoutSeconds * 1000);
+             GetMethod method = null;
+             LocalizableMessage message;
+ 
+             try {
+-                method = new GetMethod(url);
++                method = createMethodForClient(url, username, password);
+                 int responseCode = client.executeMethod(method);
+                 if (responseCode == HttpStatus.SC_OK) {
+                     data = HttpUtils.readResponseBody(method, READ_LIMIT);
+@@ -220,8 +237,8 @@ public static String getData(String url, int timeoutSeconds, int retries) throws
+             catch (InterruptedException e) {
+                 // no op
+             }
+-        }
+-
+-        return data;
++	}
++	return data;
+     }
++
+ }
+diff --git a/src/com/serotonin/mango/vo/dataSource/http/HttpRetrieverDataSourceVO.java b/src/com/serotonin/mango/vo/dataSource/http/HttpRetrieverDataSourceVO.java
+index 4c0b78774..7557f7fbe 100644
+--- a/src/com/serotonin/mango/vo/dataSource/http/HttpRetrieverDataSourceVO.java
++++ b/src/com/serotonin/mango/vo/dataSource/http/HttpRetrieverDataSourceVO.java
+@@ -46,50 +46,55 @@
+  * @author Matthew Lohbihler
+  */
+ @JsonRemoteEntity
+-public class HttpRetrieverDataSourceVO extends DataSourceVO<HttpRetrieverDataSourceVO> implements ICheckReactivation{
++public class HttpRetrieverDataSourceVO extends DataSourceVO<HttpRetrieverDataSourceVO> implements ICheckReactivation {
+     public static final Type TYPE = Type.HTTP_RETRIEVER;
+ 
+     @Override
+     protected void addEventTypes(List<EventTypeVO> ets) {
+-        ets.add(createEventType(HttpRetrieverDataSourceRT.DATA_RETRIEVAL_FAILURE_EVENT, new LocalizableMessage(
+-                "event.ds.dataRetrieval")));
+-        ets.add(createEventType(HttpRetrieverDataSourceRT.PARSE_EXCEPTION_EVENT, new LocalizableMessage(
+-                "event.ds.dataParse")));
++	ets.add(createEventType(HttpRetrieverDataSourceRT.DATA_RETRIEVAL_FAILURE_EVENT,
++		new LocalizableMessage("event.ds.dataRetrieval")));
++	ets.add(createEventType(HttpRetrieverDataSourceRT.PARSE_EXCEPTION_EVENT,
++		new LocalizableMessage("event.ds.dataParse")));
+     }
+ 
+     private static final ExportCodes EVENT_CODES = new ExportCodes();
+     static {
+-        EVENT_CODES.addElement(HttpRetrieverDataSourceRT.DATA_RETRIEVAL_FAILURE_EVENT, "DATA_RETRIEVAL_FAILURE");
+-        EVENT_CODES.addElement(HttpRetrieverDataSourceRT.PARSE_EXCEPTION_EVENT, "PARSE_EXCEPTION");
++	EVENT_CODES.addElement(HttpRetrieverDataSourceRT.DATA_RETRIEVAL_FAILURE_EVENT, "DATA_RETRIEVAL_FAILURE");
++	EVENT_CODES.addElement(HttpRetrieverDataSourceRT.PARSE_EXCEPTION_EVENT, "PARSE_EXCEPTION");
+     }
+ 
+     @Override
+     public ExportCodes getEventCodes() {
+-        return EVENT_CODES;
++	return EVENT_CODES;
+     }
+ 
+     @Override
+     public LocalizableMessage getConnectionDescription() {
+-        return new LocalizableMessage("common.default", StringUtils.truncate(url, 30, " ..."));
++	return new LocalizableMessage("common.default", StringUtils.truncate(url, 30, " ..."));
+     }
+ 
+     @Override
+     public Type getType() {
+-        return TYPE;
++	return TYPE;
+     }
+ 
+     @Override
+     public DataSourceRT createDataSourceRT() {
+-        return new HttpRetrieverDataSourceRT(this);
++	return new HttpRetrieverDataSourceRT(this);
+     }
+ 
+     @Override
+     public HttpRetrieverPointLocatorVO createPointLocator() {
+-        return new HttpRetrieverPointLocatorVO();
++	return new HttpRetrieverPointLocatorVO();
+     }
+ 
+     @JsonRemoteProperty
+     private String url;
++    @JsonRemoteProperty
++    private String username;
++    @JsonRemoteProperty
++    private String password;
++    @JsonRemoteProperty
+     private int updatePeriodType = Common.TimePeriods.MINUTES;
+     @JsonRemoteProperty
+     private int updatePeriods = 5;
+@@ -97,104 +102,124 @@ public HttpRetrieverPointLocatorVO createPointLocator() {
+     private int timeoutSeconds = 30;
+     @JsonRemoteProperty
+     private int retries = 2;
+-
+     @JsonRemoteProperty
+     private boolean stop = false;
+-
+     @JsonRemoteProperty
+     private ReactivationDs reactivation = new ReactivationDs();
+ 
+     public String getUrl() {
+-        return url;
++	return url;
+     }
+ 
+     public void setUrl(String url) {
+-        this.url = url;
++	this.url = url;
++    }
++
++    public String getUsername() {
++	return username;
++    }
++
++    public void setUsername(String username) {
++	this.username = username;
++    }
++
++    public String getPassword() {
++	return password;
++    }
++
++    public void setPassword(String password) {
++	this.password = password;
+     }
+ 
+     public int getUpdatePeriodType() {
+-        return updatePeriodType;
++	return updatePeriodType;
+     }
+ 
+     public void setUpdatePeriodType(int updatePeriodType) {
+-        this.updatePeriodType = updatePeriodType;
++	this.updatePeriodType = updatePeriodType;
+     }
+ 
+     public int getUpdatePeriods() {
+-        return updatePeriods;
++	return updatePeriods;
+     }
+ 
+     public void setUpdatePeriods(int updatePeriods) {
+-        this.updatePeriods = updatePeriods;
++	this.updatePeriods = updatePeriods;
+     }
+ 
+     public int getTimeoutSeconds() {
+-        return timeoutSeconds;
++	return timeoutSeconds;
+     }
+ 
+     public void setTimeoutSeconds(int timeoutSeconds) {
+-        this.timeoutSeconds = timeoutSeconds;
++	this.timeoutSeconds = timeoutSeconds;
+     }
+ 
+     public int getRetries() {
+-        return retries;
++	return retries;
+     }
+ 
+     public void setRetries(int retries) {
+-        this.retries = retries;
++	this.retries = retries;
+     }
+ 
+     public boolean isStop() {
+-        return stop;
++	return stop;
+     }
+ 
+     public void setStop(boolean stop) {
+-        this.stop = stop;
++	this.stop = stop;
+     }
+ 
+     public ReactivationDs getReactivation() {
+-        return reactivation;
++	return reactivation;
+     }
+ 
+     public void setReactivation(ReactivationDs reactivation) {
+-        this.reactivation = reactivation;
++	this.reactivation = reactivation;
+     }
+ 
+     @Override
+     public void validate(DwrResponseI18n response) {
+-        super.validate(response);
+-        if (StringUtils.isEmpty(url))
+-            response.addContextualMessage("url", "validate.required");
+-        if (!Common.TIME_PERIOD_CODES.isValidId(updatePeriodType))
+-            response.addContextualMessage("updatePeriodType", "validate.invalidValue");
+-        if (updatePeriods <= 0)
+-            response.addContextualMessage("updatePeriods", "validate.greaterThanZero");
+-        if (timeoutSeconds <= 0)
+-            response.addContextualMessage("updatePeriods", "validate.greaterThanZero");
+-        if (retries < 0)
+-            response.addContextualMessage("retries", "validate.cannotBeNegative");
++	super.validate(response);
++	if (StringUtils.isEmpty(url))
++	    response.addContextualMessage("url", "validate.required");
++	if (!StringUtils.isEmpty(username) && StringUtils.isEmpty(password))
++	    response.addContextualMessage("password", "validate.required");
++	if (!Common.TIME_PERIOD_CODES.isValidId(updatePeriodType))
++	    response.addContextualMessage("updatePeriodType", "validate.invalidValue");
++	if (updatePeriods <= 0)
++	    response.addContextualMessage("updatePeriods", "validate.greaterThanZero");
++	if (timeoutSeconds <= 0)
++	    response.addContextualMessage("timeoutSeconds", "validate.greaterThanZero");
++	if (retries < 0)
++	    response.addContextualMessage("retries", "validate.cannotBeNegative");
+     }
+ 
+     @Override
+     protected void addPropertiesImpl(List<LocalizableMessage> list) {
+-        AuditEventType.addPeriodMessage(list, "dsEdit.updatePeriod", updatePeriodType, updatePeriods);
+-        AuditEventType.addPropertyMessage(list, "dsEdit.httpRetriever.url", url);
+-        AuditEventType.addPropertyMessage(list, "dsEdit.httpRetriever.timeout", timeoutSeconds);
+-        AuditEventType.addPropertyMessage(list, "dsEdit.httpRetriever.retries", retries);
+-        AuditEventType.addPropertyMessage(list, "dsEdit.httpRetriever.stop", stop );
+-        AuditEventType.addPropertyMessage(list, "dsEdit.httpRetriever.reactivation", reactivation );
++	AuditEventType.addPeriodMessage(list, "dsEdit.updatePeriod", updatePeriodType, updatePeriods);
++	AuditEventType.addPropertyMessage(list, "dsEdit.httpRetriever.url", url);
++	AuditEventType.addPropertyMessage(list, "dsEdit.httpRetriever.username", username);
++	AuditEventType.addPropertyMessage(list, "dsEdit.httpRetriever.password", password);
++	AuditEventType.addPropertyMessage(list, "dsEdit.httpRetriever.timeout", timeoutSeconds);
++	AuditEventType.addPropertyMessage(list, "dsEdit.httpRetriever.retries", retries);
++	AuditEventType.addPropertyMessage(list, "dsEdit.httpRetriever.stop", stop);
++	AuditEventType.addPropertyMessage(list, "dsEdit.httpRetriever.reactivation", reactivation);
+     }
+ 
+     @Override
+     protected void addPropertyChangesImpl(List<LocalizableMessage> list, HttpRetrieverDataSourceVO from) {
+-        AuditEventType.maybeAddPeriodChangeMessage(list, "dsEdit.updatePeriod", from.updatePeriodType,
+-                from.updatePeriods, updatePeriodType, updatePeriods);
+-        AuditEventType.maybeAddPropertyChangeMessage(list, "dsEdit.httpRetriever.url", from.url, url);
+-        AuditEventType.maybeAddPropertyChangeMessage(list, "dsEdit.httpRetriever.timeout", from.timeoutSeconds,
+-                timeoutSeconds);
+-        AuditEventType.maybeAddPropertyChangeMessage(list, "dsEdit.httpRetriever.retries", from.retries, retries);
+-        AuditEventType.maybeAddPropertyChangeMessage(list, "dsEdit.httpRetriever.stop", from.stop, stop);
+-        AuditEventType.maybeAddPropertyChangeMessage(list, "dsEdit.httpRetriever.reactivation", from.stop, stop);
++	AuditEventType.maybeAddPeriodChangeMessage(list, "dsEdit.updatePeriod", from.updatePeriodType,
++		from.updatePeriods, updatePeriodType, updatePeriods);
++	AuditEventType.maybeAddPropertyChangeMessage(list, "dsEdit.httpRetriever.url", from.url, url);
++	AuditEventType.maybeAddPropertyChangeMessage(list, "dsEdit.httpRetriever.username", from.username, username);
++	AuditEventType.maybeAddPropertyChangeMessage(list, "dsEdit.httpRetriever.password", from.password, password);
++	AuditEventType.maybeAddPropertyChangeMessage(list, "dsEdit.httpRetriever.timeout", from.timeoutSeconds,
++		timeoutSeconds);
++	AuditEventType.maybeAddPropertyChangeMessage(list, "dsEdit.httpRetriever.retries", from.retries, retries);
++	AuditEventType.maybeAddPropertyChangeMessage(list, "dsEdit.httpRetriever.stop", from.stop, stop);
++	AuditEventType.maybeAddPropertyChangeMessage(list, "dsEdit.httpRetriever.reactivation", from.stop, stop);
+     }
+ 
+     //
+@@ -203,58 +228,81 @@ protected void addPropertyChangesImpl(List<LocalizableMessage> list, HttpRetriev
+     // /
+     //
+     private static final long serialVersionUID = -1;
+-    private static final int version = 1;
++    private static final int version = 2;
+ 
+     private void writeObject(ObjectOutputStream out) throws IOException {
+-        out.writeInt(version);
+-        SerializationHelper.writeSafeUTF(out, url);
+-        out.writeInt(updatePeriodType);
+-        out.writeInt(updatePeriods);
+-        out.writeInt(timeoutSeconds);
+-        out.writeInt(retries);
+-        out.writeBoolean(stop);
+-        out.writeObject(reactivation);
++	out.writeInt(version);
++	SerializationHelper.writeSafeUTF(out, url);
++	SerializationHelper.writeSafeUTF(out, username);
++	SerializationHelper.writeSafeUTF(out, password);
++	out.writeInt(updatePeriodType);
++	out.writeInt(updatePeriods);
++	out.writeInt(timeoutSeconds);
++	out.writeInt(retries);
++	out.writeBoolean(stop);
++	out.writeObject(reactivation);
+     }
+ 
+     private void readObject(ObjectInputStream in) throws IOException {
+-        int ver = in.readInt();
+-
+-        // Switch on the version of the class so that version changes can be elegantly handled.
+-        if (ver == 1) {
+-            url = SerializationHelper.readSafeUTF(in);
+-            updatePeriodType = in.readInt();
+-            updatePeriods = in.readInt();
+-            timeoutSeconds = in.readInt();
+-            ;
+-            retries = in.readInt();
+-            try {
+-                stop = in.readBoolean();
+-            } catch (Exception e) {
+-                stop = false;
+-            }
+-            try {
+-                reactivation = (ReactivationDs) in.readObject();
+-            } catch (Exception e) {
+-                reactivation = new ReactivationDs(false, (short) 1,(short) 1);
+-            }
+-        }
++	int ver = in.readInt();
++
++	// Switch on the version of the class so that version changes can be elegantly
++	// handled.
++	switch (ver) {
++	case 1:
++	    url = SerializationHelper.readSafeUTF(in);
++	    updatePeriodType = in.readInt();
++	    updatePeriods = in.readInt();
++	    timeoutSeconds = in.readInt();
++	    retries = in.readInt();
++	    try {
++		stop = in.readBoolean();
++	    } catch (Exception e) {
++		stop = false;
++	    }
++	    try {
++		reactivation = (ReactivationDs) in.readObject();
++	    } catch (Exception e) {
++		reactivation = new ReactivationDs(false, (short) 1, (short) 1);
++	    }
++	    break;
++	case 2:
++	    url = SerializationHelper.readSafeUTF(in);
++	    username = SerializationHelper.readSafeUTF(in);
++	    password = SerializationHelper.readSafeUTF(in);
++	    updatePeriodType = in.readInt();
++	    updatePeriods = in.readInt();
++	    timeoutSeconds = in.readInt();
++	    retries = in.readInt();
++	    try {
++		stop = in.readBoolean();
++	    } catch (Exception e) {
++		stop = false;
++	    }
++	    try {
++		reactivation = (ReactivationDs) in.readObject();
++	    } catch (Exception e) {
++		reactivation = new ReactivationDs(false, (short) 1, (short) 1);
++	    }
++	    break;
++	}
+     }
+ 
+     @Override
+     public void jsonDeserialize(JsonReader reader, JsonObject json) throws JsonException {
+-        super.jsonDeserialize(reader, json);
+-        Integer value = deserializeUpdatePeriodType(json);
+-        if (value != null)
+-            updatePeriodType = value;
++	super.jsonDeserialize(reader, json);
++	Integer value = deserializeUpdatePeriodType(json);
++	if (value != null)
++	    updatePeriodType = value;
+     }
+ 
+     @Override
+     public void jsonSerialize(Map<String, Object> map) {
+-        super.jsonSerialize(map);
+-        serializeUpdatePeriodType(map, updatePeriodType);
++	super.jsonSerialize(map);
++	serializeUpdatePeriodType(map, updatePeriodType);
+     }
+ 
+     public boolean checkToTrayEnable() {
+-        return isEnabled() || isStop() || reactivation.isSleep();
++	return isEnabled() || isStop() || reactivation.isSleep();
+     }
+ }
+diff --git a/src/com/serotonin/mango/web/dwr/DataSourceEditDwr.java b/src/com/serotonin/mango/web/dwr/DataSourceEditDwr.java
+index f111e897b..d9be8fa7f 100644
+--- a/src/com/serotonin/mango/web/dwr/DataSourceEditDwr.java
++++ b/src/com/serotonin/mango/web/dwr/DataSourceEditDwr.java
+@@ -1291,6 +1291,7 @@ public DataPointVO addBacnetPoint(String ip, int port, int networkNumber,
+     @MethodFilter
+     public DwrResponseI18n saveHttpRetrieverDataSource(String name, String xid,
+                                                        int updatePeriods, int updatePeriodType, String url,
++                                                       String username, String password,
+                                                        int timeoutSeconds, int retries, boolean stop) {
+         HttpRetrieverDataSourceVO ds = (HttpRetrieverDataSourceVO) Common
+                 .getUser().getEditDataSource();
+@@ -1300,6 +1301,8 @@ public DwrResponseI18n saveHttpRetrieverDataSource(String name, String xid,
+         ds.setUpdatePeriods(updatePeriods);
+         ds.setUpdatePeriodType(updatePeriodType);
+         ds.setUrl(url);
++        ds.setUsername(username);
++        ds.setPassword(password);
+         ds.setTimeoutSeconds(timeoutSeconds);
+         ds.setRetries(retries);
+         ds.setStop(stop);
+@@ -1310,6 +1313,7 @@ public DwrResponseI18n saveHttpRetrieverDataSource(String name, String xid,
+     @MethodFilter
+     public DwrResponseI18n saveHttpRetrieverDataSourceWithReactivationOptions(String name, String xid,
+                                                                               int updatePeriods, int updatePeriodType, String url,
++                                                                              String username, String password,
+                                                                               int timeoutSeconds, int retries, boolean stop, boolean sleep, short typeReactivation, short valueReactivation) {
+         HttpRetrieverDataSourceVO ds = (HttpRetrieverDataSourceVO) Common
+                 .getUser().getEditDataSource();
+@@ -1319,6 +1323,8 @@ public DwrResponseI18n saveHttpRetrieverDataSourceWithReactivationOptions(String
+         ds.setUpdatePeriods(updatePeriods);
+         ds.setUpdatePeriodType(updatePeriodType);
+         ds.setUrl(url);
++        ds.setUsername(username);
++        ds.setPassword(password);
+         ds.setTimeoutSeconds(timeoutSeconds);
+         ds.setRetries(retries);
+         ds.setStop(stop);
+@@ -1347,10 +1353,10 @@ public DwrResponseI18n saveHttpRetrieverPointLocator(int id, String xid,
+     }
+ 
+     @MethodFilter
+-    public String testHttpRetrieverValueParams(String url, int timeoutSeconds,
++    public String testHttpRetrieverValueParams(String url, String username, String password, int timeoutSeconds,
+                                                int retries, String valueRegex, int dataTypeId, String valueFormat) {
+         try {
+-            String data = HttpRetrieverDataSourceRT.getData(url,
++            String data = HttpRetrieverDataSourceRT.getData(url, username, password,
+                     timeoutSeconds, retries);
+ 
+             Pattern valuePattern = Pattern.compile(valueRegex);
+@@ -1369,10 +1375,10 @@ public String testHttpRetrieverValueParams(String url, int timeoutSeconds,
+     }
+ 
+     @MethodFilter
+-    public String testHttpRetrieverTimeParams(String url, int timeoutSeconds,
++    public String testHttpRetrieverTimeParams(String url, String username, String password, int timeoutSeconds,
+                                               int retries, String timeRegex, String timeFormat) {
+         try {
+-            String data = HttpRetrieverDataSourceRT.getData(url,
++            String data = HttpRetrieverDataSourceRT.getData(url, username, password,
+                     timeoutSeconds, retries);
+ 
+             Pattern timePattern = Pattern.compile(timeRegex);
+diff --git a/src/org/scada_lts/ds/reactivation/ReactivationConnectHttpRetriever.java b/src/org/scada_lts/ds/reactivation/ReactivationConnectHttpRetriever.java
+index 684cc9c25..12899e48c 100644
+--- a/src/org/scada_lts/ds/reactivation/ReactivationConnectHttpRetriever.java
++++ b/src/org/scada_lts/ds/reactivation/ReactivationConnectHttpRetriever.java
+@@ -37,7 +37,7 @@ public void execute(JobExecutionContext jobExecutionContext) throws JobExecution
+ 
+         HttpRetrieverDataSourceVO hrds = (HttpRetrieverDataSourceVO) ds;
+ 
+-        if (HttpRetrieverDataSourceRT.testConnection(hrds.getUrl(), hrds.getTimeoutSeconds(), hrds.getRetries())) {
++        if (HttpRetrieverDataSourceRT.testConnection(hrds.getUrl(), hrds.getUsername(), hrds.getPassword(), hrds.getTimeoutSeconds(), hrds.getRetries())) {
+ 
+             try {
+                 jobExecutionContext.getScheduler().deleteJob(keyJob.getName(), keyJob.getGroup());
+diff --git a/webapp-resources/messages_en.properties b/webapp-resources/messages_en.properties
+index 492a90041..a152ba60e 100644
+--- a/webapp-resources/messages_en.properties
++++ b/webapp-resources/messages_en.properties
+@@ -632,11 +632,13 @@ dsEdit.httpReceiver.tester.whiteList=Error checking white list: {0}
+ dsEdit.httpReceiver.time=Time
+ dsEdit.httpRetriever=HTTP Retriever
+ dsEdit.httpRetriever.binaryZeroValue=Binary 0 value
++dsEdit.httpRetriever.credentials=Credentials
+ dsEdit.httpRetriever.desc=HTTP Retriever properties
+ dsEdit.httpRetriever.dpconn=Regex: {0}
+ dsEdit.httpRetriever.ignoreIfMissing=Ignore if missing
+ dsEdit.httpRetriever.numberFormat=Number format
+ dsEdit.httpRetriever.openUrl=Open URL
++dsEdit.httpRetriever.password=Password
+ dsEdit.httpRetriever.regex=RegEx
+ dsEdit.httpRetriever.retries=Retries
+ dsEdit.httpRetriever.testTime=Test time parameters
+@@ -645,6 +647,7 @@ dsEdit.httpRetriever.timeFormat=Time format
+ dsEdit.httpRetriever.timeRegex=Time RegEx
+ dsEdit.httpRetriever.timeout=Timeout (seconds)
+ dsEdit.httpRetriever.url=URL
++dsEdit.httpRetriever.username=Username
+ dsEdit.httpRetriever.valueRegex=Value RegEx
+ dsEdit.iec101.asduAddress=ASDU Address
+ dsEdit.iec101.asduAddressSize=ASDU Address Field Size

@@ -1,0 +1,17 @@
+version: '3'
+services:
+  mongodb:
+    mem_limit: 128m
+    image: docker.io/mongo:4.4.10
+    command:
+      - mongod
+      - --noscripting
+      - --serviceExecutor=adaptive
+    user: mongodb
+    networks:
+      a25_ind_enterprise: {}
+    volumes:
+      - ditto_db:/data/db
+
+volumes:
+  ditto_db: {}

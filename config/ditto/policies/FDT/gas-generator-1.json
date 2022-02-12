@@ -1,0 +1,42 @@
+{
+  "policyId" : "FDT:gas-generator-1",
+  "entries" : {
+    "owner" : {
+      "subjects" : {
+        "nginx:administrator" : {
+          "type" : "The system administrator"
+        },
+        "{{ request:subjectId }}" : {
+          "type" : "Who made the original submission"
+        }
+      },
+      "resources" : {
+        "policy:/" : { "grant" : [ "READ", "WRITE" ], "revoke" : [] },
+        "thing:/" : { "grant" : [ "READ", "WRITE" ], "revoke" : [] },
+        "message:/" : { "grant" : [ "READ", "WRITE" ], "revoke" : [] }
+      }
+    },
+    "gas-generator-1" : {
+      "subjects" : {
+        "nginx:gas-generator-1" : {
+          "type" : "The gas generator"
+        }
+      },
+      "resources" : {
+        "message:/" : { "grant" : [ "READ", "WRITE" ], "revoke" : [] },
+        "thing:/features" : { "grant" : [ "READ", "WRITE" ], "revoke" : [] }
+      }
+    },
+    "backend" : {
+      "subjects" : {
+        "nginx:backend" : {
+          "type" : "Aggregator backend"
+        }
+      },
+      "resources" : {
+        "message:/" : { "grant" : [ "READ", "WRITE" ], "revoke" : [] },
+        "thing:/features" : { "grant" : [ "READ" ], "revoke" : [] }
+      }
+    }
+  }
+}

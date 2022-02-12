@@ -1,0 +1,14 @@
+{
+  "thingId" : "FDT:gas-generator-1",
+  "policyId" : "FDT:gas-generator-1",
+  "definition" : "it.unige.sv:GasGenerator:0.1.0",
+  "attributes" : {
+    "likes-focaccia" : "A lot",
+    "prefers-pesto-with" : {
+      "aglio" : true,
+      "fagiolini" : true,
+      "patate" : true
+    }
+  },
+  "features" : {}
+}

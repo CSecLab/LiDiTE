@@ -1,0 +1,55 @@
+---
+version: '3'
+services:
+  prometheus:
+    image: prom/prometheus:v2.27.1
+    user: root
+    command:
+    - --config.file=/etc/prometheus.yaml
+    - --web.listen-address=127.0.0.1:9090
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+    - ./config/performance-sampler/prometheus.yaml:/etc/prometheus.yaml:ro
+    - prometheus:/prometheus/data
+  node_exporter:
+    image: quay.io/prometheus/node-exporter:v1.1.2
+    container_name: node_exporter
+    command:
+    - --collector.cpu.info
+    - --collector.processes
+    - --collector.buddyinfo
+    - --collector.zoneinfo
+    - '--path.rootfs=/host'
+    - '--path.procfs=/host/proc'
+    - '--path.sysfs=/host/sys'
+    - --web.listen-address=127.0.0.1:9100
+    network_mode: host
+    pid: host
+    restart: unless-stopped
+    volumes:
+    - '/:/host:ro,rslave'
+    - '/proc:/host/proc:ro,rslave'
+    - '/sys:/host/sys:ro,rslave'
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.37.5
+    privileged: true
+    volumes:
+    - '/:/rootfs:ro'
+    - '/var/run:/var/run:ro'
+    - '/sys:/sys:ro'
+    - '/var/lib/docker:/var/lib/docker:ro'
+    - '/dev/disk:/dev/disk:ro'
+    - '/sys/fs/cgroup:/sys/fs/cgroup:ro'
+    network_mode: host
+    pid: host
+    devices:
+    - /dev/kmsg
+    command:
+    - -docker_only
+    - -listen_ip=127.0.0.1
+    - -port=9101
+    - -store_container_labels
+
+volumes:
+  prometheus: {}

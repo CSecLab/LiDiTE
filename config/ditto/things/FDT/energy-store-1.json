@@ -1,0 +1,14 @@
+{
+  "thingId" : "FDT:energy-store-1",
+  "policyId" : "FDT:energy-store-1",
+  "definition" : "it.unige.sv:EnergyStore:0.1.0",
+  "attributes" : {
+    "likes-focaccia" : "A lot",
+    "prefers-pesto-with" : {
+      "aglio" : true,
+      "fagiolini" : true,
+      "patate" : true
+    }
+  },
+  "features" : {}
+}

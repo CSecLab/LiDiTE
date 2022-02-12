@@ -1,0 +1,27 @@
+test -f /.configured-net && exit 0
+
+uci -q batch <<-EOF >/dev/null
+  set network.lan.proto=static
+  set network.lan.ipaddr=172.16.10.1
+  set network.lan.netmask=255.255.255.0
+
+  set network.wan.proto=static
+  set network.wan.ipaddr=10.255.255.10
+  set network.wan.netmask=255.255.255.248
+  #set network.wan.gateway=10.255.255.9
+
+  set network.ind=interface
+  set network.ind.proto=static
+  set network.ind.ifname=eth2
+  set network.ind.ipaddr=10.255.255.17
+  set network.ind.netmask=255.255.255.248
+
+  commit network
+
+  set uhttpd.main.rfc1918_filter=0
+  commit uhttpd
+EOF
+
+touch /.configured-net
+
+exit 0

@@ -1,0 +1,46 @@
+test -f /.configured && exit 0
+
+uci -q batch <<-EOF >/dev/null
+  delete firewall.@zone[1].masq
+
+  set firewall.@include[0].reload='1'
+
+  add firewall rule
+  set firewall.@rule[-1].enabled=1  
+  set firewall.@rule[-1].src=wan
+  set firewall.@rule[-1].dest_port=80
+  set firewall.@rule[-1].proto=tcp
+  set firewall.@rule[-1].name='Allow web from WAN'
+  set firewall.@rule[-1].target=ACCEPT
+  
+  add firewall rule
+  set firewall.@rule[-1].enabled=1  
+  set firewall.@rule[-1].src=wan
+  set firewall.@rule[-1].src_ip=172.16.10.100
+  set firewall.@rule[-1].dest=lan
+  set firewall.@rule[-1].dest_port=502  
+  set firewall.@rule[-1].proto=tcp
+  set firewall.@rule[-1].name='Allow modbus from scada'
+  set firewall.@rule[-1].target=ACCEPT
+
+  add firewall rule
+  set firewall.@rule[-1].enabled=1  
+  set firewall.@rule[-1].src=wan
+  set firewall.@rule[-1].dest=lan
+  set firewall.@rule[-1].proto=icmp
+  set firewall.@rule[-1].name='Allow ICMP'
+  set firewall.@rule[-1].target=ACCEPT
+  
+  # OSPF
+  add firewall rule
+  set firewall.@rule[-1].enabled=1  
+  set firewall.@rule[-1].src=wan
+  set firewall.@rule[-1].proto=89
+  set firewall.@rule[-1].name='Allow OSPF from Enterprise'
+  set firewall.@rule[-1].target=ACCEPT
+  commit firewall
+EOF
+
+touch /.configured
+  
+exit 0  

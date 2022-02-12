@@ -1,0 +1,29 @@
+services:
+  dmz1:
+    image: praqma/network-multitool
+    hostname: dmz1
+    networks:
+      z95_dmz:
+        ipv4_address: 192.168.100.242
+
+  ent1:
+    image: praqma/network-multitool
+    privileged: true
+    hostname: ent1
+    networks:
+      a20_enterprise:
+        ipv4_address: 192.168.50.242
+
+  inde1:
+    image: praqma/network-multitool
+    hostname: inde1
+    networks:
+      a25_ind_enterprise:
+        ipv4_address: 172.16.10.242
+
+  ind1:
+    image: praqma/network-multitool
+    hostname: ind1
+    networks:
+      a30_industrial:
+        ipv4_address: 10.10.10.242

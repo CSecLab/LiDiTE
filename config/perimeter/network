@@ -1,0 +1,49 @@
+# PERIMETER firewall: network configuration
+
+test -f /.configured-net && exit 0
+
+uci -q batch <<-EOF >/dev/null
+  # enterprise interface
+  set network.lan.proto=static
+  set network.lan.ipaddr=192.168.50.1
+  set network.lan.netmask=255.255.255.0
+
+  # provider interface (connection with isp firewall)
+  set network.wan.proto=static
+  set network.wan.ipaddr=10.255.255.6
+  set network.wan.netmask=255.255.255.248
+  #set network.wan.gateway=10.255.255.1
+
+  # dmz interface
+  set network.dmz=interface
+  set network.dmz.proto=static
+  set network.dmz.ifname=eth2
+  set network.dmz.ipaddr=192.168.100.1
+  set network.dmz.netmask=255.255.255.0
+
+  # ent interface (connection with enterprise firewall)
+  set network.ent=interface
+  set network.ent.proto=static
+  set network.ent.ifname=eth3
+  set network.ent.ipaddr=10.255.255.9
+  set network.ent.netmask=255.255.255.248
+
+  delete network.loopback.ipaddr
+  delete network.loopback.netmask
+  add_list network.loopback.ipaddr=127.0.0.1/8
+
+  # add here the public IP addresses used for exposing internal services
+  # 198.51.100.0/24 Assigned as TEST-NET-2, documentation and examples.[
+  add_list network.loopback.ipaddr=198.51.100.1/32
+  add_list network.loopback.ipaddr=198.51.100.2/32
+  add_list network.loopback.ipaddr=198.51.100.3/32
+
+  commit network
+
+  set uhttpd.main.rfc1918_filter=0
+  commit uhttpd
+EOF
+
+touch /.configured-net
+
+exit 0

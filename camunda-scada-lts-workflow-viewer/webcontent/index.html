@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Workflows overviews</title>
+  <script src="https://unpkg.com/bpmn-js@8.2.1/dist/bpmn-navigated-viewer.development.js"></script>
+  <script type="text/javascript" src="index.js"></script>
+  <link rel="stylesheet" href="index.css"/>
+</head>
+
+<body>
+  <header>
+    <h1>Workflow viewer</h1>
+    <nav>
+      <label for="workflow">Available workflows:</label>
+      <select name="workflow" id="workflow" disabled onchange="selectedWorkflowChanged()">
+        <option selected>loading...</option>
+      </select>
+    </nav>
+  </header>
+  <main>
+    <div id="bpmn-canvas"></div>
+  </main>
+</body>
+
+</html>

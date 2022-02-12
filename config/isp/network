@@ -1,0 +1,52 @@
+# ISP firewall: network configuration
+
+test -f /.configured-net && exit 0
+
+uci -q batch <<-EOF >/dev/null
+  delete network.lan
+  delete network.wan
+
+  # provider interface (connection with provider firewall)
+  set network.provider=interface
+  set network.provider.proto=static
+  set network.provider.ifname=eth0
+  set network.provider.ipaddr=10.255.255.1
+  set network.provider.netmask=255.255.255.248
+
+  # simulated Internet
+  set network.simint=interface
+  set network.simint.proto=static
+  set network.simint.ifname=eth1
+  set network.simint.ipaddr=27.8.8.8
+  set network.simint.netmask=255.255.0.0
+
+  # extnet interface (host network)
+  set network.extnet=interface
+  set network.extnet.proto=static
+  set network.extnet.ifname=eth2
+  set network.extnet.ipaddr=172.16.255.2
+  set network.extnet.netmask=255.255.255.0
+  set network.extnet.gateway=172.16.255.1
+
+  delete network.loopback.ipaddr
+  delete network.loopback.netmask
+  add_list network.loopback.ipaddr=127.0.0.1/8
+
+  commit network
+
+  set uhttpd.main.rfc1918_filter=0
+  commit uhttpd
+EOF
+
+# remove old wan/lan rules (add this part if you require removing default zones and rules)
+n=$(uci show firewall | egrep "wan|lan" | wc -l)
+for i in $(seq 1 $n)
+do
+ uci delete $(uci show firewall | egrep "wan|lan" | head -1 | cut -d. -f1,2)
+done 
+
+uci commit
+
+touch /.configured-net 
+
+exit 0  

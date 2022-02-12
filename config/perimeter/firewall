@@ -1,0 +1,130 @@
+test -f /.configured && exit 0
+
+uci -q batch <<-EOF >/dev/null
+  
+  set firewall.@include[0].reload='1'
+
+  # dmz
+  add firewall zone
+  set firewall.@zone[-1]=zone
+  set firewall.@zone[-1].name='dmz'
+  set firewall.@zone[-1].network='dmz'
+  set firewall.@zone[-1].input='ACCEPT'
+  set firewall.@zone[-1].output='ACCEPT'
+  set firewall.@zone[-1].forward='ACCEPT'
+  commit firewall.@zone[-1]
+
+  # ent
+  add firewall zone
+  set firewall.@zone[-1]=zone
+  set firewall.@zone[-1].name='ent'
+  set firewall.@zone[-1].network='ent'
+  set firewall.@zone[-1].input='ACCEPT'
+  set firewall.@zone[-1].output='ACCEPT'
+  set firewall.@zone[-1].forward='ACCEPT'
+  commit firewall.@zone[-1]
+
+  # Forwarding between zones
+  add firewall forwarding
+  set firewall.@forwarding[-1].src='dmz'
+  set firewall.@forwarding[-1].dest='wan'
+
+  add firewall forwarding
+  set firewall.@forwarding[-1].src='lan'
+  set firewall.@forwarding[-1].dest='dmz'
+
+  add firewall forwarding
+  set firewall.@forwarding[-1].src='lan'
+  set firewall.@forwarding[-1].dest='wan'
+
+  add firewall forwarding
+  set firewall.@forwarding[-1].src='lan'
+  set firewall.@forwarding[-1].dest='ent'
+
+  add firewall forwarding
+  set firewall.@forwarding[-1].src='ent'
+  set firewall.@forwarding[-1].dest='wan'
+
+  # web interface from WAN
+  add firewall rule
+  set firewall.@rule[-1].enabled=1  
+  set firewall.@rule[-1].src=wan
+  set firewall.@rule[-1].dest_port=80
+  set firewall.@rule[-1].proto=tcp
+  set firewall.@rule[-1].name='Allow web from WAN'
+  set firewall.@rule[-1].target=ACCEPT
+
+  # BGP
+  add firewall rule
+  set firewall.@rule[-1].enabled=1  
+  set firewall.@rule[-1].src=wan
+  set firewall.@rule[-1].dest_port=179
+  set firewall.@rule[-1].proto=tcp
+  set firewall.@rule[-1].name='Allow BGP from WAN'
+  set firewall.@rule[-1].target=ACCEPT
+
+  # nat
+  add firewall nat
+  set firewall.@nat[-1].target='SNAT'
+  set firewall.@nat[-1].src='wan'
+  set firewall.@nat[-1].name='source nat for internal networks'
+  set firewall.@nat[-1].snat_ip='198.51.100.1'
+  commit firewall
+
+  # port forwarding
+
+  # map port 81 with web management of enterprise firewall
+  add firewall redirect
+  set firewall.@redirect[-1]=redirect
+  set firewall.@redirect[-1].dest_port='80'
+  set firewall.@redirect[-1].src='wan'
+  set firewall.@redirect[-1].proto='tcp'
+  set firewall.@redirect[-1].src_dip='198.51.100.1'
+  set firewall.@redirect[-1].dest='ent'
+  set firewall.@redirect[-1].dest_ip='10.255.255.10'
+  set firewall.@redirect[-1].src_dport='81'
+  set firewall.@redirect[-1].name='forward to fw enterprise LuCI'
+  commit firewall.@redirect[-1]
+
+  # map port 82 with web management of industrial firewall
+  add firewall redirect
+  set firewall.@redirect[-1]=redirect
+  set firewall.@redirect[-1].dest_port='80'
+  set firewall.@redirect[-1].src='wan'
+  set firewall.@redirect[-1].proto='tcp'
+  set firewall.@redirect[-1].src_dip='198.51.100.1'
+  set firewall.@redirect[-1].dest='ent'
+  set firewall.@redirect[-1].dest_ip='10.255.255.18'
+  set firewall.@redirect[-1].src_dport='82'
+  set firewall.@redirect[-1].name='forward to fw industrial LuCI'
+  commit firewall.@redirect[-1]
+
+  # server scada
+  add firewall redirect
+  set firewall.@redirect[-1]=redirect
+  set firewall.@redirect[-1].dest_port='8080'
+  set firewall.@redirect[-1].src='wan'
+  set firewall.@redirect[-1].proto='tcp'
+  set firewall.@redirect[-1].src_dip='198.51.100.2'
+  set firewall.@redirect[-1].dest='ent'
+  set firewall.@redirect[-1].dest_ip='172.16.10.100'
+  set firewall.@redirect[-1].src_dport='80'
+  set firewall.@redirect[-1].name='forward to fw industrial LuCI'
+  commit firewall.@redirect[-1]
+
+  # server scada (workflows)
+  add firewall redirect
+  set firewall.@redirect[-1]=redirect
+  set firewall.@redirect[-1].dest_port='80'
+  set firewall.@redirect[-1].src='wan'
+  set firewall.@redirect[-1].proto='tcp'
+  set firewall.@redirect[-1].src_dip='198.51.100.3'
+  set firewall.@redirect[-1].dest='ent'
+  set firewall.@redirect[-1].dest_ip='172.16.10.101'
+  set firewall.@redirect[-1].src_dport='80'
+  set firewall.@redirect[-1].name='forward to fw industrial LuCI'
+  commit firewall.@redirect[-1]
+EOF
+  
+touch /.configured
+exit 0

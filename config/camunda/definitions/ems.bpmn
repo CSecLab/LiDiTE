@@ -1,0 +1,1585 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_10pux1y" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.11.1" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.15.0">
+  <bpmn:process id="ems" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1" name="Cronjob invoked EMS job">
+      <bpmn:outgoing>Flow_0xt20w0</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="Activity_1f1x7t9" name="Login to ScadaLTS">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/auth/${scadalts_api_username}/${scadalts_api_password}</camunda:inputParameter>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:outputParameter name="response">
+              <camunda:script scriptFormat="groovy">if (statusCode != 200) {
+    throw new org.camunda.bpm.engine.delegate.BpmnError("error-no-response");
+} 
+
+if (response != "true") {
+    throw new org.camunda.bpm.engine.delegate.BpmnError("error-invalid-response");
+}</camunda:script>
+            </camunda:outputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0xt20w0</bpmn:incoming>
+      <bpmn:outgoing>Flow_0higv6s</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0xt20w0" sourceRef="StartEvent_1" targetRef="Activity_1f1x7t9" />
+    <bpmn:serviceTask id="Activity_1ej5fe8" name="Get available datapoint names">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/datapoint/getAll</camunda:inputParameter>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:outputParameter name="points">
+              <camunda:script scriptFormat="groovy">import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+
+def jsonSlurper = new JsonSlurper()
+def object = jsonSlurper.parseText(response)
+
+assert object instanceof List
+
+def points = [:]
+
+object.each {
+  def pointName = it.name
+  def pointXid = it.xid
+
+  points[pointName] = pointXid
+
+  if (debug) {
+    println "Found point ${pointXid} - ${pointName}"
+  }
+}
+
+return JsonOutput.toJson(points)</camunda:script>
+            </camunda:outputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0higv6s</bpmn:incoming>
+      <bpmn:outgoing>Flow_0lea4ol</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0higv6s" sourceRef="Activity_1f1x7t9" targetRef="Activity_1ej5fe8" />
+    <bpmn:sequenceFlow id="Flow_0lea4ol" sourceRef="Activity_1ej5fe8" targetRef="Gateway_1y6mn84" />
+    <bpmn:parallelGateway id="Gateway_1y6mn84">
+      <bpmn:incoming>Flow_0lea4ol</bpmn:incoming>
+      <bpmn:outgoing>Flow_0v0dnwd</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0vvzs8t</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0zv2pra</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0l5lihl</bpmn:outgoing>
+      <bpmn:outgoing>Flow_02r7fe8</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0boecv8</bpmn:outgoing>
+      <bpmn:outgoing>Flow_08589cv</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1s3msnm</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:serviceTask id="Activity_0x5m162" name="Get total consumption value">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/getValue/${total_consumption_xid}</camunda:inputParameter>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:outputParameter name="total_consumption">
+              <camunda:script scriptFormat="groovy">import groovy.json.JsonSlurper
+
+def jsonSlurper = new JsonSlurper()
+def object = jsonSlurper.parseText(response)
+
+def value = Double.parseDouble(object['value'])
+
+if (debug) {
+  println "Current power consumption: ${value}"
+}
+
+return value</camunda:script>
+            </camunda:outputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1jkw8b0</bpmn:incoming>
+      <bpmn:outgoing>Flow_028tjvg</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:scriptTask id="Activity_12cyd7s" name="Get total consumption point XID" scriptFormat="groovy" camunda:resultVariable="total_consumption_xid">
+      <bpmn:incoming>Flow_0v0dnwd</bpmn:incoming>
+      <bpmn:outgoing>Flow_1jkw8b0</bpmn:outgoing>
+      <bpmn:script>import groovy.json.JsonSlurper
+def jsonSlurper = new JsonSlurper()
+return jsonSlurper.parseText(points)['Total buildings consumption']</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:sequenceFlow id="Flow_0v0dnwd" sourceRef="Gateway_1y6mn84" targetRef="Activity_12cyd7s" />
+    <bpmn:sequenceFlow id="Flow_1jkw8b0" sourceRef="Activity_12cyd7s" targetRef="Activity_0x5m162" />
+    <bpmn:scriptTask id="Activity_1m81g5n" name="Get Energy Store charge percentage point XID" scriptFormat="groovy" camunda:resultVariable="energy_store_charge_percent_xid">
+      <bpmn:incoming>Flow_0l5lihl</bpmn:incoming>
+      <bpmn:outgoing>Flow_0hu9p0f</bpmn:outgoing>
+      <bpmn:script>import groovy.json.JsonSlurper
+def jsonSlurper = new JsonSlurper()
+return jsonSlurper.parseText(points)['Energy store 1 charge percent']</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:scriptTask id="Activity_1nl0al5" name="Get Gas Turbine status point XID" scriptFormat="groovy" camunda:resultVariable="gas_turbine_status_xid">
+      <bpmn:incoming>Flow_0boecv8</bpmn:incoming>
+      <bpmn:outgoing>Flow_0b9j4y6</bpmn:outgoing>
+      <bpmn:script>import groovy.json.JsonSlurper
+def jsonSlurper = new JsonSlurper()
+return jsonSlurper.parseText(points)['Gas turbine 1 state']</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:serviceTask id="Activity_1x0wp32" name="Get Energy Store charge percentage value">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/getValue/${energy_store_charge_percent_xid}</camunda:inputParameter>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:outputParameter name="energy_store_charge_percentage">
+              <camunda:script scriptFormat="groovy">import groovy.json.JsonSlurper
+
+def jsonSlurper = new JsonSlurper()
+def object = jsonSlurper.parseText(response)
+
+def value = Double.parseDouble(object['value'])
+
+if (debug) {
+  println "Current ES SoC percentage: ${value}"
+}
+
+return value</camunda:script>
+            </camunda:outputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0hu9p0f</bpmn:incoming>
+      <bpmn:outgoing>Flow_01yx124</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_1rsl0af" name="Get Gas Turbine status value">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/getValue/${gas_turbine_status_xid}</camunda:inputParameter>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:outputParameter name="gas_turbine_state">
+              <camunda:script scriptFormat="groovy">import groovy.json.JsonSlurper
+
+def jsonSlurper = new JsonSlurper()
+def object = jsonSlurper.parseText(response)
+
+def value = object['value']
+
+if (debug) {
+  println "Gas turbine status: ${value}"
+}
+
+return value</camunda:script>
+            </camunda:outputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0b9j4y6</bpmn:incoming>
+      <bpmn:outgoing>Flow_0a75hs7</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:scriptTask id="Activity_14s4nbp" name="Get Solar panel power point XID" scriptFormat="groovy" camunda:resultVariable="solar_panel_power_xid">
+      <bpmn:incoming>Flow_08589cv</bpmn:incoming>
+      <bpmn:outgoing>Flow_1993xc1</bpmn:outgoing>
+      <bpmn:script>import groovy.json.JsonSlurper
+def jsonSlurper = new JsonSlurper()
+return jsonSlurper.parseText(points)['Solar panel 1 power']</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:serviceTask id="Activity_0fpq5m0" name="Get  Solar Panel power value">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/getValue/${solar_panel_power_xid}</camunda:inputParameter>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:outputParameter name="solar_power">
+              <camunda:script scriptFormat="groovy">import groovy.json.JsonSlurper
+
+def jsonSlurper = new JsonSlurper()
+def object = jsonSlurper.parseText(response)
+
+def value = Double.parseDouble(object['value']) * 1000.0
+
+if (debug) {
+  println "Current solar power: ${value}"
+}
+
+return value</camunda:script>
+            </camunda:outputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1993xc1</bpmn:incoming>
+      <bpmn:outgoing>Flow_1mb1e2s</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0hu9p0f" sourceRef="Activity_1m81g5n" targetRef="Activity_1x0wp32" />
+    <bpmn:sequenceFlow id="Flow_0b9j4y6" sourceRef="Activity_1nl0al5" targetRef="Activity_1rsl0af" />
+    <bpmn:sequenceFlow id="Flow_1993xc1" sourceRef="Activity_14s4nbp" targetRef="Activity_0fpq5m0" />
+    <bpmn:scriptTask id="Activity_1llpcfh" name="Get Energy Store requested charge point XID" scriptFormat="groovy" camunda:resultVariable="energy_store_requested_charge_xid">
+      <bpmn:incoming>Flow_0zv2pra</bpmn:incoming>
+      <bpmn:outgoing>Flow_1h5dcrv</bpmn:outgoing>
+      <bpmn:script>import groovy.json.JsonSlurper
+def jsonSlurper = new JsonSlurper()
+return jsonSlurper.parseText(points)['Energy store 1 input']</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:scriptTask id="Activity_1rdlvgx" name="Get Gas Turbine command point XID" scriptFormat="groovy" camunda:resultVariable="gas_turbine_command_xid">
+      <bpmn:incoming>Flow_02r7fe8</bpmn:incoming>
+      <bpmn:outgoing>Flow_1stz2y0</bpmn:outgoing>
+      <bpmn:script>import groovy.json.JsonSlurper
+def jsonSlurper = new JsonSlurper()
+return jsonSlurper.parseText(points)['Gas turbine 1 command']</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:scriptTask id="Activity_0drgdqt" name="Get Energy Store requested discharge point XID" scriptFormat="groovy" camunda:resultVariable="energy_store_requested_discharge_xid">
+      <bpmn:incoming>Flow_0vvzs8t</bpmn:incoming>
+      <bpmn:outgoing>Flow_0mzoyqj</bpmn:outgoing>
+      <bpmn:script>import groovy.json.JsonSlurper
+def jsonSlurper = new JsonSlurper()
+return jsonSlurper.parseText(points)['Energy store 1 output']</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:sequenceFlow id="Flow_0vvzs8t" sourceRef="Gateway_1y6mn84" targetRef="Activity_0drgdqt" />
+    <bpmn:sequenceFlow id="Flow_0zv2pra" sourceRef="Gateway_1y6mn84" targetRef="Activity_1llpcfh" />
+    <bpmn:sequenceFlow id="Flow_0l5lihl" sourceRef="Gateway_1y6mn84" targetRef="Activity_1m81g5n" />
+    <bpmn:sequenceFlow id="Flow_02r7fe8" sourceRef="Gateway_1y6mn84" targetRef="Activity_1rdlvgx" />
+    <bpmn:sequenceFlow id="Flow_0boecv8" sourceRef="Gateway_1y6mn84" targetRef="Activity_1nl0al5" />
+    <bpmn:sequenceFlow id="Flow_08589cv" sourceRef="Gateway_1y6mn84" targetRef="Activity_14s4nbp" />
+    <bpmn:exclusiveGateway id="Gateway_1uk0wa0" default="Flow_0217k7p">
+      <bpmn:incoming>Flow_1118xb7</bpmn:incoming>
+      <bpmn:outgoing>Flow_1u5tb1o</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0217k7p</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_1u5tb1o" name="Turbine is running" sourceRef="Gateway_1uk0wa0" targetRef="Gateway_0st32a3">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" language="groovy">return gas_turbine_state == "GENERATING"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_0217k7p" sourceRef="Gateway_1uk0wa0" targetRef="Gateway_1jj8esu" />
+    <bpmn:serviceTask id="Activity_04kvivc" name="Get Gas Turbine electrical power value">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/getValue/${gas_turbine_power_xid}</camunda:inputParameter>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:outputParameter name="gas_turbine_power">
+              <camunda:script scriptFormat="groovy">import groovy.json.JsonSlurper
+
+def jsonSlurper = new JsonSlurper()
+def object = jsonSlurper.parseText(response)
+
+def value = Double.parseDouble(object['value']) * 1000.0
+
+if (debug) {
+  println "Gas turbine power: ${value}"
+}
+
+return value</camunda:script>
+            </camunda:outputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1ndy0xi</bpmn:incoming>
+      <bpmn:outgoing>Flow_07lgwyg</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:scriptTask id="Activity_1khdw0d" name="Get Gas Turbine electrical power XID" scriptFormat="groovy" camunda:resultVariable="gas_turbine_power_xid">
+      <bpmn:incoming>Flow_1s3msnm</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ndy0xi</bpmn:outgoing>
+      <bpmn:script>import groovy.json.JsonSlurper
+def jsonSlurper = new JsonSlurper()
+return jsonSlurper.parseText(points)['Gas turbine 1 power (electric)']</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:sequenceFlow id="Flow_1ndy0xi" sourceRef="Activity_1khdw0d" targetRef="Activity_04kvivc" />
+    <bpmn:sequenceFlow id="Flow_1s3msnm" sourceRef="Gateway_1y6mn84" targetRef="Activity_1khdw0d" />
+    <bpmn:scriptTask id="Activity_0e0ib73" name="Calculate overall surplus" scriptFormat="groovy" camunda:resultVariable="overall_surplus">
+      <bpmn:incoming>Flow_0wrw4vd</bpmn:incoming>
+      <bpmn:outgoing>Flow_0t03pye</bpmn:outgoing>
+      <bpmn:script>def surplus = solar_power + gas_turbine_power + energy_store_requested_discharge - energy_store_requested_charge - total_consumption;
+
+if (debug_simulated_overall_surplus != null) {
+  println "Setting fake overall surplus"
+  surplus = debug_simulated_overall_surplus
+}
+
+if (debug) {
+  println "Current overall surplus: ${surplus}"
+}
+
+return surplus</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:exclusiveGateway id="Gateway_0anryr2" default="Flow_1in6y9k">
+      <bpmn:incoming>Flow_1cnnmk9</bpmn:incoming>
+      <bpmn:outgoing>Flow_1in6y9k</bpmn:outgoing>
+      <bpmn:outgoing>Flow_14447gr</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="Event_034m8el" name="Relying on external power grid">
+      <bpmn:extensionElements>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Relying on external grid")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_13xesgf</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1in6y9k" sourceRef="Gateway_0anryr2" targetRef="Activity_0hbqc4v" />
+    <bpmn:sequenceFlow id="Flow_14447gr" name="Energy surplus" sourceRef="Gateway_0anryr2" targetRef="Gateway_0ungwxy">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" language="groovy">return overall_surplus &gt; 0.0</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_1118xb7" sourceRef="Gateway_1nestpx" targetRef="Gateway_1uk0wa0" />
+    <bpmn:parallelGateway id="Gateway_1nestpx" name="State calculations complete">
+      <bpmn:incoming>Flow_0t03pye</bpmn:incoming>
+      <bpmn:incoming>Flow_0h0wh2y</bpmn:incoming>
+      <bpmn:outgoing>Flow_1118xb7</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1tsgyk4</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:serviceTask id="Activity_17crszz" name="Get Energy Store requested discharge value">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/getValue/${energy_store_requested_discharge_xid}</camunda:inputParameter>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:outputParameter name="energy_store_requested_discharge">
+              <camunda:script scriptFormat="groovy">import groovy.json.JsonSlurper
+
+def jsonSlurper = new JsonSlurper()
+def object = jsonSlurper.parseText(response)
+
+def value = Double.parseDouble(object['value']) * 1000.0
+
+if (debug) {
+  println "Energy Store requested discharge: ${value}"
+}
+
+return value</camunda:script>
+            </camunda:outputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0mzoyqj</bpmn:incoming>
+      <bpmn:outgoing>Flow_13nqpm1</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0mzoyqj" sourceRef="Activity_0drgdqt" targetRef="Activity_17crszz" />
+    <bpmn:serviceTask id="Activity_0apn923" name="Get Energy Store requested charge value">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/getValue/${energy_store_requested_charge_xid}</camunda:inputParameter>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:outputParameter name="energy_store_requested_charge">
+              <camunda:script scriptFormat="groovy">import groovy.json.JsonSlurper
+
+def jsonSlurper = new JsonSlurper()
+def object = jsonSlurper.parseText(response)
+
+def value = Double.parseDouble(object['value']) * 1000.0
+
+if (debug) {
+  println "Energy Store requested charge: ${value}"
+}
+
+return value</camunda:script>
+            </camunda:outputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1h5dcrv</bpmn:incoming>
+      <bpmn:outgoing>Flow_1kcyjlj</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_1h5dcrv" sourceRef="Activity_1llpcfh" targetRef="Activity_0apn923" />
+    <bpmn:exclusiveGateway id="Gateway_016she9" default="Flow_1pzdn7n">
+      <bpmn:incoming>Flow_1tsgyk4</bpmn:incoming>
+      <bpmn:outgoing>Flow_1pzdn7n</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0fpvucx</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_1tsgyk4" sourceRef="Gateway_1nestpx" targetRef="Gateway_016she9" />
+    <bpmn:sequenceFlow id="Flow_1pzdn7n" name="Energy deficit" sourceRef="Gateway_016she9" targetRef="Gateway_11ru67o">
+      <bpmn:extensionElements>
+        <camunda:executionListener event="take">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Attempting to discharge ES")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_0fpvucx" name="Energy surplus" sourceRef="Gateway_016she9" targetRef="Gateway_0um97y8">
+      <bpmn:extensionElements>
+        <camunda:executionListener event="take">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Attempting to charge ES")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" language="groovy">return batteryless_surplus &gt; 0.0</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:exclusiveGateway id="Gateway_0um97y8" default="Flow_00yswg9">
+      <bpmn:incoming>Flow_0fpvucx</bpmn:incoming>
+      <bpmn:outgoing>Flow_1gmu3fb</bpmn:outgoing>
+      <bpmn:outgoing>Flow_00yswg9</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Activity_15grn2x" name="Command Energy Store charge start">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/setValue/${energy_store_requested_charge_xid}/3/${requested_charge}</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0muc2tv</bpmn:incoming>
+      <bpmn:outgoing>Flow_095ll99</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_1bkd18e" name="Command Energy Store discharge stop">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/setValue/${energy_store_requested_discharge_xid}/3/0</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Stopped ES discharge")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1s8m46f</bpmn:incoming>
+      <bpmn:outgoing>Flow_1x1y9ry</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:parallelGateway id="Gateway_1qyeyr3">
+      <bpmn:incoming>Flow_1gmu3fb</bpmn:incoming>
+      <bpmn:outgoing>Flow_1s8m46f</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1x5dbr3</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:sequenceFlow id="Flow_1s8m46f" sourceRef="Gateway_1qyeyr3" targetRef="Activity_1bkd18e" />
+    <bpmn:endEvent id="Event_1pyghni" name="Commanded Energy Store charge start">
+      <bpmn:incoming>Flow_095ll99</bpmn:incoming>
+      <bpmn:incoming>Flow_1x1y9ry</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_095ll99" sourceRef="Activity_15grn2x" targetRef="Event_1pyghni" />
+    <bpmn:sequenceFlow id="Flow_1x1y9ry" sourceRef="Activity_1bkd18e" targetRef="Event_1pyghni" />
+    <bpmn:scriptTask id="Activity_0idmigq" name="Calculate Energy Store charge" scriptFormat="groovy" camunda:resultVariable="requested_charge">
+      <bpmn:incoming>Flow_1x5dbr3</bpmn:incoming>
+      <bpmn:outgoing>Flow_0muc2tv</bpmn:outgoing>
+      <bpmn:script>def charge = batteryless_surplus / 1000.0
+
+if (debug) {
+  println("ES charge kW: ${charge}")
+}
+
+if (es_max_exchange_rate != null &amp;&amp; charge * 1000.0 &gt; es_max_exchange_rate) {
+  charge = es_max_exchange_rate / 1000.0
+  if (debug) {
+    println("ES charge capped to max exchange rate")
+  }
+}
+
+return charge</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:sequenceFlow id="Flow_0muc2tv" sourceRef="Activity_0idmigq" targetRef="Activity_15grn2x" />
+    <bpmn:sequenceFlow id="Flow_1x5dbr3" sourceRef="Gateway_1qyeyr3" targetRef="Activity_0idmigq" />
+    <bpmn:endEvent id="Event_0y6plur" name="Commanded Energy Store stop">
+      <bpmn:incoming>Flow_0uqt3gc</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1gmu3fb" name="Battery can charge" sourceRef="Gateway_0um97y8" targetRef="Gateway_1qyeyr3">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" language="groovy">return energy_store_charge_percentage &lt; 90.0</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:exclusiveGateway id="Gateway_11ru67o" default="Flow_1d5f2tw">
+      <bpmn:incoming>Flow_1pzdn7n</bpmn:incoming>
+      <bpmn:outgoing>Flow_01yp5id</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1d5f2tw</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="Activity_0qbcjvx" name="Command Energy Store charge stop">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/setValue/${energy_store_requested_charge_xid}/3/0</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Stopped ES charge")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1d5f2tw</bpmn:incoming>
+      <bpmn:outgoing>Flow_1y2s10h</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_033fo4d" name="Command Energy Store discharge start">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/setValue/${energy_store_requested_discharge_xid}/3/${requested_discharge}</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0ourkvr</bpmn:incoming>
+      <bpmn:outgoing>Flow_0o48336</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:scriptTask id="Activity_1w3z8fv" name="Calculate Energy Store discharge" scriptFormat="groovy" camunda:resultVariable="requested_discharge">
+      <bpmn:incoming>Flow_1a4odpr</bpmn:incoming>
+      <bpmn:outgoing>Flow_0ourkvr</bpmn:outgoing>
+      <bpmn:script>def discharge = Math.abs(batteryless_surplus / 1000.0)
+
+if (debug) {
+  println("ES discharge kW: ${discharge}")
+}
+
+if (es_max_exchange_rate != null &amp;&amp; discharge * 1000.0 &gt; es_max_exchange_rate) {
+  discharge = es_max_exchange_rate / 1000.0
+  if (debug) {
+    println("ES discharge capped to max exchange rate")
+  }
+}
+
+return discharge</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:sequenceFlow id="Flow_0ourkvr" sourceRef="Activity_1w3z8fv" targetRef="Activity_033fo4d" />
+    <bpmn:parallelGateway id="Gateway_1x7a20i">
+      <bpmn:incoming>Flow_01yp5id</bpmn:incoming>
+      <bpmn:outgoing>Flow_1a4odpr</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0584q9f</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:sequenceFlow id="Flow_1a4odpr" sourceRef="Gateway_1x7a20i" targetRef="Activity_1w3z8fv" />
+    <bpmn:sequenceFlow id="Flow_01yp5id" name="Battery can discharge" sourceRef="Gateway_11ru67o" targetRef="Gateway_1x7a20i">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" language="groovy">return energy_store_charge_percentage &gt; 10.0</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:endEvent id="Event_1044r27" name="Commanded Energy Store discharge start">
+      <bpmn:incoming>Flow_0o48336</bpmn:incoming>
+      <bpmn:incoming>Flow_1xv37v1</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0o48336" sourceRef="Activity_033fo4d" targetRef="Event_1044r27" />
+    <bpmn:serviceTask id="Activity_09n5oi7" name="Command Energy Store discharge stop">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/setValue/${energy_store_requested_discharge_xid}/3/0</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Stopped ES discharge")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1y2s10h</bpmn:incoming>
+      <bpmn:outgoing>Flow_0uqt3gc</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0uqt3gc" sourceRef="Activity_09n5oi7" targetRef="Event_0y6plur" />
+    <bpmn:serviceTask id="Activity_02o5inz" name="Command Energy Store charge stop">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/setValue/${energy_store_requested_charge_xid}/3/0</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Stopped ES charge")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0584q9f</bpmn:incoming>
+      <bpmn:outgoing>Flow_1xv37v1</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0584q9f" sourceRef="Gateway_1x7a20i" targetRef="Activity_02o5inz" />
+    <bpmn:sequenceFlow id="Flow_1xv37v1" sourceRef="Activity_02o5inz" targetRef="Event_1044r27" />
+    <bpmn:serviceTask id="Activity_1un134z" name="Command Turbine stop">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/setValue/${gas_turbine_command_xid}/4/STOP</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Sent turbine stop")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0bnao6m</bpmn:incoming>
+      <bpmn:incoming>Flow_04do03b</bpmn:incoming>
+      <bpmn:outgoing>Flow_0879b22</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:exclusiveGateway id="Gateway_0ungwxy" default="Flow_0rsms1h">
+      <bpmn:incoming>Flow_14447gr</bpmn:incoming>
+      <bpmn:outgoing>Flow_0rsms1h</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0bnao6m</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="Event_18ktc1g" name="Turbine stop">
+      <bpmn:extensionElements>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Turbine is not needed: ES charged and energy surplus")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0879b22</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="Event_0agm82t" name="Absorbing turbine in Energy Store">
+      <bpmn:extensionElements>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Turbine flowing to ES")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0ntlfdr</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0rsms1h" sourceRef="Gateway_0ungwxy" targetRef="Activity_0srkgkc" />
+    <bpmn:sequenceFlow id="Flow_0879b22" sourceRef="Activity_1un134z" targetRef="Event_18ktc1g" />
+    <bpmn:sequenceFlow id="Flow_0bnao6m" name="Battery is charged" sourceRef="Gateway_0ungwxy" targetRef="Activity_1un134z">
+      <bpmn:extensionElements>
+        <camunda:executionListener event="take">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("ES charge ${energy_store_charge_percentage} is above maximum turbine charge threshold ${turbine_energy_store_charge_hi}")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" language="groovy">return energy_store_charge_percentage &gt; turbine_energy_store_charge_hi</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:exclusiveGateway id="Gateway_1jj8esu" default="Flow_0j8735s">
+      <bpmn:incoming>Flow_0217k7p</bpmn:incoming>
+      <bpmn:outgoing>Flow_0j8735s</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0sdn60x</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:exclusiveGateway id="Gateway_1hpzsuo" default="Flow_1x96tpa">
+      <bpmn:incoming>Flow_0j8735s</bpmn:incoming>
+      <bpmn:outgoing>Flow_1x96tpa</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0qwy0pn</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_0j8735s" sourceRef="Gateway_1jj8esu" targetRef="Gateway_1hpzsuo" />
+    <bpmn:endEvent id="Event_0b9wb8a" name="Using other resources">
+      <bpmn:extensionElements>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Turbine is not needed: too low deficit")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0j881b2</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1x96tpa" sourceRef="Gateway_1hpzsuo" targetRef="Activity_1gzmgox" />
+    <bpmn:serviceTask id="Activity_0s3zwzk" name="Command Turbine start">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/setValue/${gas_turbine_command_xid}/4/START</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Sent turbine start")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0qwy0pn</bpmn:incoming>
+      <bpmn:outgoing>Flow_1p9n4re</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="Event_1fxzb9w" name="Started turbine">
+      <bpmn:extensionElements>
+        <camunda:executionListener event="end">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Sent turbine start due to high consumption")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1p9n4re</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1p9n4re" sourceRef="Activity_0s3zwzk" targetRef="Event_1fxzb9w" />
+    <bpmn:sequenceFlow id="Flow_0qwy0pn" name="High consumption" sourceRef="Gateway_1hpzsuo" targetRef="Activity_0s3zwzk">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" language="groovy">return overall_surplus &lt; 0 &amp;&amp; Math.abs(overall_surplus) &gt;= gas_turbine_rated_watts</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:serviceTask id="Activity_1m26v1d" name="Command Turbine start">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/setValue/${gas_turbine_command_xid}/4/START</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Sent turbine start")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0ljwmqz</bpmn:incoming>
+      <bpmn:outgoing>Flow_1mo8pkv</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="Event_1xv106a" name="Started turbine">
+      <bpmn:extensionElements>
+        <camunda:executionListener event="end">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Using turbine to charge ES") 
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1mo8pkv</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1mo8pkv" sourceRef="Activity_1m26v1d" targetRef="Event_1xv106a" />
+    <bpmn:sequenceFlow id="Flow_0sdn60x" name="Battery can be charged" sourceRef="Gateway_1jj8esu" targetRef="Gateway_0xcar6v">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" language="groovy">return energy_store_charge_percentage &lt; turbine_energy_store_charge_lo</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:parallelGateway id="Gateway_09bt9ls" name="State gather complete">
+      <bpmn:incoming>Flow_028tjvg</bpmn:incoming>
+      <bpmn:incoming>Flow_13nqpm1</bpmn:incoming>
+      <bpmn:incoming>Flow_1kcyjlj</bpmn:incoming>
+      <bpmn:incoming>Flow_01yx124</bpmn:incoming>
+      <bpmn:incoming>Flow_0a75hs7</bpmn:incoming>
+      <bpmn:incoming>Flow_07lgwyg</bpmn:incoming>
+      <bpmn:incoming>Flow_1mb1e2s</bpmn:incoming>
+      <bpmn:incoming>Flow_1e6vg23</bpmn:incoming>
+      <bpmn:outgoing>Flow_17b4o0l</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:sequenceFlow id="Flow_028tjvg" sourceRef="Activity_0x5m162" targetRef="Gateway_09bt9ls" />
+    <bpmn:sequenceFlow id="Flow_13nqpm1" sourceRef="Activity_17crszz" targetRef="Gateway_09bt9ls" />
+    <bpmn:sequenceFlow id="Flow_1kcyjlj" sourceRef="Activity_0apn923" targetRef="Gateway_09bt9ls" />
+    <bpmn:sequenceFlow id="Flow_01yx124" sourceRef="Activity_1x0wp32" targetRef="Gateway_09bt9ls" />
+    <bpmn:sequenceFlow id="Flow_0a75hs7" sourceRef="Activity_1rsl0af" targetRef="Gateway_09bt9ls" />
+    <bpmn:sequenceFlow id="Flow_07lgwyg" sourceRef="Activity_04kvivc" targetRef="Gateway_09bt9ls" />
+    <bpmn:sequenceFlow id="Flow_1mb1e2s" sourceRef="Activity_0fpq5m0" targetRef="Gateway_09bt9ls" />
+    <bpmn:scriptTask id="Activity_1dtmq6f" name="Calculate overall battery-less surplus" scriptFormat="groovy" camunda:resultVariable="batteryless_surplus">
+      <bpmn:incoming>Flow_12ggh4n</bpmn:incoming>
+      <bpmn:outgoing>Flow_0h0wh2y</bpmn:outgoing>
+      <bpmn:script>def surplus = solar_power + gas_turbine_power - total_consumption;
+
+if (debug_simulated_batteryless_surplus != null) {
+  println "Setting fake battery-less surplus"
+  surplus = debug_simulated_overall_surplus
+}
+
+if (debug) {
+  println "Current battery-less surplus: ${surplus}"
+}
+
+return surplus</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:parallelGateway id="Gateway_1xeyr55">
+      <bpmn:incoming>Flow_17b4o0l</bpmn:incoming>
+      <bpmn:outgoing>Flow_0wrw4vd</bpmn:outgoing>
+      <bpmn:outgoing>Flow_12ggh4n</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:sequenceFlow id="Flow_17b4o0l" sourceRef="Gateway_09bt9ls" targetRef="Gateway_1xeyr55" />
+    <bpmn:sequenceFlow id="Flow_0wrw4vd" sourceRef="Gateway_1xeyr55" targetRef="Activity_0e0ib73" />
+    <bpmn:sequenceFlow id="Flow_0t03pye" sourceRef="Activity_0e0ib73" targetRef="Gateway_1nestpx" />
+    <bpmn:sequenceFlow id="Flow_12ggh4n" sourceRef="Gateway_1xeyr55" targetRef="Activity_1dtmq6f" />
+    <bpmn:sequenceFlow id="Flow_0h0wh2y" sourceRef="Activity_1dtmq6f" targetRef="Gateway_1nestpx" />
+    <bpmn:exclusiveGateway id="Gateway_0st32a3" default="Flow_1cnnmk9">
+      <bpmn:incoming>Flow_1u5tb1o</bpmn:incoming>
+      <bpmn:outgoing>Flow_1cnnmk9</bpmn:outgoing>
+      <bpmn:outgoing>Flow_04do03b</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_1cnnmk9" sourceRef="Gateway_0st32a3" targetRef="Gateway_0anryr2">
+      <bpmn:extensionElements>
+        <camunda:executionListener event="take">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  def calendar = Calendar.getInstance()
+  def hourOfDay = calendar.get(Calendar.HOUR_OF_DAY)
+  println("Turbine inside of working hours current = ${hourOfDay}, range = ${turbine_start_hour}-${turbine_end_hour}")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_04do03b" name="In the night" sourceRef="Gateway_0st32a3" targetRef="Activity_1un134z">
+      <bpmn:extensionElements>
+        <camunda:executionListener event="take">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  def calendar = Calendar.getInstance()
+  def hourOfDay = calendar.get(Calendar.HOUR_OF_DAY)
+  println("Turbine outside of working hours current = ${hourOfDay}, range = ${turbine_start_hour}-${turbine_end_hour}")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" language="groovy">def calendar = Calendar.getInstance()
+def hourOfDay = calendar.get(Calendar.HOUR_OF_DAY)
+
+def beforeStart = hourOfDay &lt; turbine_start_hour
+def afterEnd = hourOfDay &gt;= turbine_end_hour
+
+return beforeStart || afterEnd</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:serviceTask id="Activity_0ml5pxn" name="Get Gas Turbine command value">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/getValue/${gas_turbine_command_xid}</camunda:inputParameter>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:outputParameter name="gas_turbine_command">
+              <camunda:script scriptFormat="groovy">import groovy.json.JsonSlurper
+
+def jsonSlurper = new JsonSlurper()
+def object = jsonSlurper.parseText(response)
+
+def value = object['value']
+
+if (debug) {
+  println "Gas turbine command: ${value}"
+}
+
+return value</camunda:script>
+            </camunda:outputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1stz2y0</bpmn:incoming>
+      <bpmn:outgoing>Flow_1e6vg23</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_1stz2y0" sourceRef="Activity_1rdlvgx" targetRef="Activity_0ml5pxn" />
+    <bpmn:sequenceFlow id="Flow_1e6vg23" sourceRef="Activity_0ml5pxn" targetRef="Gateway_09bt9ls" />
+    <bpmn:serviceTask id="Activity_1gzmgox" name="Command Turbine stop">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/setValue/${gas_turbine_command_xid}/4/STOP</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Sent turbine stop")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1x96tpa</bpmn:incoming>
+      <bpmn:outgoing>Flow_0j881b2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0j881b2" sourceRef="Activity_1gzmgox" targetRef="Event_0b9wb8a" />
+    <bpmn:serviceTask id="Activity_0hbqc4v" name="Command Turbine start">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/setValue/${gas_turbine_command_xid}/4/START</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Sent turbine start")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1in6y9k</bpmn:incoming>
+      <bpmn:outgoing>Flow_13xesgf</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_13xesgf" sourceRef="Activity_0hbqc4v" targetRef="Event_034m8el" />
+    <bpmn:serviceTask id="Activity_0srkgkc" name="Command Turbine start">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/setValue/${gas_turbine_command_xid}/4/START</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Sent turbine start")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0rsms1h</bpmn:incoming>
+      <bpmn:outgoing>Flow_0ntlfdr</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0ntlfdr" sourceRef="Activity_0srkgkc" targetRef="Event_0agm82t" />
+    <bpmn:exclusiveGateway id="Gateway_0xcar6v" default="Flow_0ljwmqz">
+      <bpmn:incoming>Flow_0sdn60x</bpmn:incoming>
+      <bpmn:outgoing>Flow_0ljwmqz</bpmn:outgoing>
+      <bpmn:outgoing>Flow_1ov168n</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_0ljwmqz" sourceRef="Gateway_0xcar6v" targetRef="Activity_1m26v1d" />
+    <bpmn:endEvent id="Event_1ygwals" name="Using other resources">
+      <bpmn:extensionElements>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Turbine is not needed: too low deficit")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1ov168n</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1ov168n" name="In the night" sourceRef="Gateway_0xcar6v" targetRef="Event_1ygwals">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" language="groovy">def calendar = Calendar.getInstance()
+def hourOfDay = calendar.get(Calendar.HOUR_OF_DAY)
+
+def beforeStart = hourOfDay &lt; turbine_start_hour
+def afterEnd = hourOfDay &gt;= turbine_end_hour
+
+return beforeStart || afterEnd</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_1y2s10h" sourceRef="Activity_0qbcjvx" targetRef="Activity_09n5oi7" />
+    <bpmn:sequenceFlow id="Flow_1d5f2tw" sourceRef="Gateway_11ru67o" targetRef="Activity_0qbcjvx" />
+    <bpmn:endEvent id="Event_07x632g" name="Commanded Energy Store stop">
+      <bpmn:incoming>Flow_1aff3hl</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="Activity_1g11ccl" name="Command Energy Store charge stop">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/setValue/${energy_store_requested_charge_xid}/3/0</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Stopped ES charge")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_00yswg9</bpmn:incoming>
+      <bpmn:outgoing>Flow_0g78sne</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_1waerkl" name="Command Energy Store discharge stop">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="url">http://${scadalts_api_host}/ScadaLTS/api/point_value/setValue/${energy_store_requested_discharge_xid}/3/0</camunda:inputParameter>
+            <camunda:inputParameter name="method">POST</camunda:inputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">if (debug) {
+  println("Stopped ES discharge")
+}</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0g78sne</bpmn:incoming>
+      <bpmn:outgoing>Flow_1aff3hl</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_1aff3hl" sourceRef="Activity_1waerkl" targetRef="Event_07x632g" />
+    <bpmn:sequenceFlow id="Flow_0g78sne" sourceRef="Activity_1g11ccl" targetRef="Activity_1waerkl" />
+    <bpmn:sequenceFlow id="Flow_00yswg9" sourceRef="Gateway_0um97y8" targetRef="Activity_1g11ccl" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="ems">
+      <bpmndi:BPMNEdge id="Flow_0ntlfdr_di" bpmnElement="Flow_0ntlfdr">
+        <di:waypoint x="2671" y="1060" />
+        <di:waypoint x="2812" y="1060" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_13xesgf_di" bpmnElement="Flow_13xesgf">
+        <di:waypoint x="2671" y="1210" />
+        <di:waypoint x="2812" y="1210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0j881b2_di" bpmnElement="Flow_0j881b2">
+        <di:waypoint x="2710" y="1520" />
+        <di:waypoint x="2812" y="1520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1e6vg23_di" bpmnElement="Flow_1e6vg23">
+        <di:waypoint x="970" y="1030" />
+        <di:waypoint x="1070" y="1030" />
+        <di:waypoint x="1070" y="962" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1stz2y0_di" bpmnElement="Flow_1stz2y0">
+        <di:waypoint x="820" y="1030" />
+        <di:waypoint x="870" y="1030" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_04do03b_di" bpmnElement="Flow_04do03b">
+        <di:waypoint x="1920" y="1185" />
+        <di:waypoint x="1920" y="810" />
+        <di:waypoint x="2621" y="810" />
+        <di:waypoint x="2621" y="870" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1892" y="792" width="55" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1cnnmk9_di" bpmnElement="Flow_1cnnmk9">
+        <di:waypoint x="1945" y="1210" />
+        <di:waypoint x="2025" y="1210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0h0wh2y_di" bpmnElement="Flow_0h0wh2y">
+        <di:waypoint x="1330" y="1060" />
+        <di:waypoint x="1380" y="1060" />
+        <di:waypoint x="1380" y="937" />
+        <di:waypoint x="1415" y="937" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_12ggh4n_di" bpmnElement="Flow_12ggh4n">
+        <di:waypoint x="1150" y="962" />
+        <di:waypoint x="1150" y="1060" />
+        <di:waypoint x="1230" y="1060" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0t03pye_di" bpmnElement="Flow_0t03pye">
+        <di:waypoint x="1330" y="860" />
+        <di:waypoint x="1380" y="860" />
+        <di:waypoint x="1380" y="937" />
+        <di:waypoint x="1415" y="937" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0wrw4vd_di" bpmnElement="Flow_0wrw4vd">
+        <di:waypoint x="1150" y="912" />
+        <di:waypoint x="1150" y="860" />
+        <di:waypoint x="1230" y="860" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_17b4o0l_di" bpmnElement="Flow_17b4o0l">
+        <di:waypoint x="1095" y="937" />
+        <di:waypoint x="1125" y="937" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1mb1e2s_di" bpmnElement="Flow_1mb1e2s">
+        <di:waypoint x="970" y="1310" />
+        <di:waypoint x="1070" y="1310" />
+        <di:waypoint x="1070" y="962" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_07lgwyg_di" bpmnElement="Flow_07lgwyg">
+        <di:waypoint x="970" y="1210" />
+        <di:waypoint x="1070" y="1210" />
+        <di:waypoint x="1070" y="962" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0a75hs7_di" bpmnElement="Flow_0a75hs7">
+        <di:waypoint x="970" y="1120" />
+        <di:waypoint x="1070" y="1120" />
+        <di:waypoint x="1070" y="962" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_01yx124_di" bpmnElement="Flow_01yx124">
+        <di:waypoint x="960" y="660" />
+        <di:waypoint x="1070" y="660" />
+        <di:waypoint x="1070" y="912" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1kcyjlj_di" bpmnElement="Flow_1kcyjlj">
+        <di:waypoint x="960" y="750" />
+        <di:waypoint x="1070" y="750" />
+        <di:waypoint x="1070" y="912" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_13nqpm1_di" bpmnElement="Flow_13nqpm1">
+        <di:waypoint x="960" y="840" />
+        <di:waypoint x="1070" y="840" />
+        <di:waypoint x="1070" y="912" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_028tjvg_di" bpmnElement="Flow_028tjvg">
+        <di:waypoint x="960" y="937" />
+        <di:waypoint x="1045" y="937" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0sdn60x_di" bpmnElement="Flow_0sdn60x">
+        <di:waypoint x="2075" y="1400" />
+        <di:waypoint x="2465" y="1400" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2236" y="1366" width="71" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1mo8pkv_di" bpmnElement="Flow_1mo8pkv">
+        <di:waypoint x="2710" y="1400" />
+        <di:waypoint x="2812" y="1400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0qwy0pn_di" bpmnElement="Flow_0qwy0pn">
+        <di:waypoint x="2490" y="1545" />
+        <di:waypoint x="2490" y="1680" />
+        <di:waypoint x="2560" y="1680" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2435" y="1693" width="89" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1p9n4re_di" bpmnElement="Flow_1p9n4re">
+        <di:waypoint x="2660" y="1680" />
+        <di:waypoint x="2812" y="1680" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1x96tpa_di" bpmnElement="Flow_1x96tpa">
+        <di:waypoint x="2515" y="1520" />
+        <di:waypoint x="2610" y="1520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0j8735s_di" bpmnElement="Flow_0j8735s">
+        <di:waypoint x="2050" y="1425" />
+        <di:waypoint x="2050" y="1520" />
+        <di:waypoint x="2465" y="1520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0bnao6m_di" bpmnElement="Flow_0bnao6m">
+        <di:waypoint x="2390" y="1035" />
+        <di:waypoint x="2390" y="910" />
+        <di:waypoint x="2571" y="910" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2345" y="883" width="89" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0879b22_di" bpmnElement="Flow_0879b22">
+        <di:waypoint x="2671" y="910" />
+        <di:waypoint x="2812" y="910" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0rsms1h_di" bpmnElement="Flow_0rsms1h">
+        <di:waypoint x="2415" y="1060" />
+        <di:waypoint x="2571" y="1060" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1xv37v1_di" bpmnElement="Flow_1xv37v1">
+        <di:waypoint x="2440" y="660" />
+        <di:waypoint x="2620" y="660" />
+        <di:waypoint x="2620" y="570" />
+        <di:waypoint x="2812" y="570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0584q9f_di" bpmnElement="Flow_0584q9f">
+        <di:waypoint x="2270" y="595" />
+        <di:waypoint x="2270" y="660" />
+        <di:waypoint x="2340" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0uqt3gc_di" bpmnElement="Flow_0uqt3gc">
+        <di:waypoint x="2590" y="470" />
+        <di:waypoint x="2812" y="470" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0o48336_di" bpmnElement="Flow_0o48336">
+        <di:waypoint x="2590" y="570" />
+        <di:waypoint x="2812" y="570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_01yp5id_di" bpmnElement="Flow_01yp5id">
+        <di:waypoint x="2110" y="495" />
+        <di:waypoint x="2110" y="570" />
+        <di:waypoint x="2245" y="570" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2072" y="586" width="56" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1a4odpr_di" bpmnElement="Flow_1a4odpr">
+        <di:waypoint x="2295" y="570" />
+        <di:waypoint x="2340" y="570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0ourkvr_di" bpmnElement="Flow_0ourkvr">
+        <di:waypoint x="2440" y="570" />
+        <di:waypoint x="2490" y="570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1gmu3fb_di" bpmnElement="Flow_1gmu3fb">
+        <di:waypoint x="2110" y="275" />
+        <di:waypoint x="2110" y="170" />
+        <di:waypoint x="2245" y="170" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2062" y="136" width="56" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1x5dbr3_di" bpmnElement="Flow_1x5dbr3">
+        <di:waypoint x="2295" y="170" />
+        <di:waypoint x="2318" y="170" />
+        <di:waypoint x="2318" y="120" />
+        <di:waypoint x="2340" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0muc2tv_di" bpmnElement="Flow_0muc2tv">
+        <di:waypoint x="2440" y="120" />
+        <di:waypoint x="2490" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1x1y9ry_di" bpmnElement="Flow_1x1y9ry">
+        <di:waypoint x="2440" y="210" />
+        <di:waypoint x="2812" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_095ll99_di" bpmnElement="Flow_095ll99">
+        <di:waypoint x="2590" y="120" />
+        <di:waypoint x="2621" y="120" />
+        <di:waypoint x="2621" y="210" />
+        <di:waypoint x="2812" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1s8m46f_di" bpmnElement="Flow_1s8m46f">
+        <di:waypoint x="2295" y="170" />
+        <di:waypoint x="2318" y="170" />
+        <di:waypoint x="2318" y="210" />
+        <di:waypoint x="2340" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0fpvucx_di" bpmnElement="Flow_0fpvucx">
+        <di:waypoint x="1780" y="375" />
+        <di:waypoint x="1780" y="300" />
+        <di:waypoint x="2085" y="300" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1743" y="273" width="74" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1pzdn7n_di" bpmnElement="Flow_1pzdn7n">
+        <di:waypoint x="1780" y="425" />
+        <di:waypoint x="1780" y="470" />
+        <di:waypoint x="2085" y="470" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1746" y="483" width="67" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1tsgyk4_di" bpmnElement="Flow_1tsgyk4">
+        <di:waypoint x="1440" y="912" />
+        <di:waypoint x="1440" y="400" />
+        <di:waypoint x="1755" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1h5dcrv_di" bpmnElement="Flow_1h5dcrv">
+        <di:waypoint x="820" y="750" />
+        <di:waypoint x="860" y="750" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0mzoyqj_di" bpmnElement="Flow_0mzoyqj">
+        <di:waypoint x="820" y="840" />
+        <di:waypoint x="860" y="840" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1118xb7_di" bpmnElement="Flow_1118xb7">
+        <di:waypoint x="1440" y="962" />
+        <di:waypoint x="1440" y="1307" />
+        <di:waypoint x="1765" y="1307" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_14447gr_di" bpmnElement="Flow_14447gr">
+        <di:waypoint x="2050" y="1185" />
+        <di:waypoint x="2050" y="1060" />
+        <di:waypoint x="2360" y="1060" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2013" y="1033" width="74" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1in6y9k_di" bpmnElement="Flow_1in6y9k">
+        <di:waypoint x="2075" y="1210" />
+        <di:waypoint x="2571" y="1210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1s3msnm_di" bpmnElement="Flow_1s3msnm">
+        <di:waypoint x="650" y="962" />
+        <di:waypoint x="650" y="1210" />
+        <di:waypoint x="720" y="1210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ndy0xi_di" bpmnElement="Flow_1ndy0xi">
+        <di:waypoint x="820" y="1210" />
+        <di:waypoint x="870" y="1210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0217k7p_di" bpmnElement="Flow_0217k7p">
+        <di:waypoint x="1790" y="1332" />
+        <di:waypoint x="1790" y="1400" />
+        <di:waypoint x="2020" y="1400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1u5tb1o_di" bpmnElement="Flow_1u5tb1o">
+        <di:waypoint x="1790" y="1282" />
+        <di:waypoint x="1790" y="1210" />
+        <di:waypoint x="1890" y="1210" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1736" y="1183" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_08589cv_di" bpmnElement="Flow_08589cv">
+        <di:waypoint x="650" y="962" />
+        <di:waypoint x="650" y="1310" />
+        <di:waypoint x="720" y="1310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0boecv8_di" bpmnElement="Flow_0boecv8">
+        <di:waypoint x="650" y="962" />
+        <di:waypoint x="650" y="1120" />
+        <di:waypoint x="720" y="1120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_02r7fe8_di" bpmnElement="Flow_02r7fe8">
+        <di:waypoint x="650" y="962" />
+        <di:waypoint x="650" y="1030" />
+        <di:waypoint x="720" y="1030" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0l5lihl_di" bpmnElement="Flow_0l5lihl">
+        <di:waypoint x="650" y="912" />
+        <di:waypoint x="650" y="660" />
+        <di:waypoint x="720" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0zv2pra_di" bpmnElement="Flow_0zv2pra">
+        <di:waypoint x="650" y="912" />
+        <di:waypoint x="650" y="750" />
+        <di:waypoint x="720" y="750" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0vvzs8t_di" bpmnElement="Flow_0vvzs8t">
+        <di:waypoint x="650" y="912" />
+        <di:waypoint x="650" y="840" />
+        <di:waypoint x="720" y="840" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1993xc1_di" bpmnElement="Flow_1993xc1">
+        <di:waypoint x="820" y="1310" />
+        <di:waypoint x="870" y="1310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0b9j4y6_di" bpmnElement="Flow_0b9j4y6">
+        <di:waypoint x="820" y="1120" />
+        <di:waypoint x="870" y="1120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0hu9p0f_di" bpmnElement="Flow_0hu9p0f">
+        <di:waypoint x="820" y="660" />
+        <di:waypoint x="860" y="660" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1jkw8b0_di" bpmnElement="Flow_1jkw8b0">
+        <di:waypoint x="820" y="937" />
+        <di:waypoint x="860" y="937" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0v0dnwd_di" bpmnElement="Flow_0v0dnwd">
+        <di:waypoint x="675" y="937" />
+        <di:waypoint x="720" y="937" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0lea4ol_di" bpmnElement="Flow_0lea4ol">
+        <di:waypoint x="550" y="937" />
+        <di:waypoint x="625" y="937" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0higv6s_di" bpmnElement="Flow_0higv6s">
+        <di:waypoint x="380" y="937" />
+        <di:waypoint x="450" y="937" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0xt20w0_di" bpmnElement="Flow_0xt20w0">
+        <di:waypoint x="215" y="937" />
+        <di:waypoint x="280" y="937" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0ljwmqz_di" bpmnElement="Flow_0ljwmqz">
+        <di:waypoint x="2515" y="1400" />
+        <di:waypoint x="2610" y="1400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ov168n_di" bpmnElement="Flow_1ov168n">
+        <di:waypoint x="2490" y="1375" />
+        <di:waypoint x="2490" y="1310" />
+        <di:waypoint x="2812" y="1310" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2462" y="1293" width="55" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1y2s10h_di" bpmnElement="Flow_1y2s10h">
+        <di:waypoint x="2440" y="470" />
+        <di:waypoint x="2490" y="470" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1d5f2tw_di" bpmnElement="Flow_1d5f2tw">
+        <di:waypoint x="2135" y="470" />
+        <di:waypoint x="2340" y="470" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1aff3hl_di" bpmnElement="Flow_1aff3hl">
+        <di:waypoint x="2590" y="300" />
+        <di:waypoint x="2812" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0g78sne_di" bpmnElement="Flow_0g78sne">
+        <di:waypoint x="2440" y="300" />
+        <di:waypoint x="2490" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_00yswg9_di" bpmnElement="Flow_00yswg9">
+        <di:waypoint x="2135" y="300" />
+        <di:waypoint x="2340" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="179" y="919" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="158" y="962" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1f1x7t9_di" bpmnElement="Activity_1f1x7t9">
+        <dc:Bounds x="280" y="897" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1ej5fe8_di" bpmnElement="Activity_1ej5fe8">
+        <dc:Bounds x="450" y="897" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1oznjhk_di" bpmnElement="Gateway_1y6mn84">
+        <dc:Bounds x="625" y="912" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0x5m162_di" bpmnElement="Activity_0x5m162">
+        <dc:Bounds x="860" y="897" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_12cyd7s_di" bpmnElement="Activity_12cyd7s">
+        <dc:Bounds x="720" y="897" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1m81g5n_di" bpmnElement="Activity_1m81g5n">
+        <dc:Bounds x="720" y="620" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1nl0al5_di" bpmnElement="Activity_1nl0al5">
+        <dc:Bounds x="720" y="1080" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1x0wp32_di" bpmnElement="Activity_1x0wp32">
+        <dc:Bounds x="860" y="620" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1rsl0af_di" bpmnElement="Activity_1rsl0af">
+        <dc:Bounds x="870" y="1080" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_14s4nbp_di" bpmnElement="Activity_14s4nbp">
+        <dc:Bounds x="720" y="1270" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0fpq5m0_di" bpmnElement="Activity_0fpq5m0">
+        <dc:Bounds x="870" y="1270" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1llpcfh_di" bpmnElement="Activity_1llpcfh">
+        <dc:Bounds x="720" y="710" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1rdlvgx_di" bpmnElement="Activity_1rdlvgx">
+        <dc:Bounds x="720" y="990" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0drgdqt_di" bpmnElement="Activity_0drgdqt">
+        <dc:Bounds x="720" y="800" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1uk0wa0_di" bpmnElement="Gateway_1uk0wa0" isMarkerVisible="true">
+        <dc:Bounds x="1765" y="1282" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_04kvivc_di" bpmnElement="Activity_04kvivc">
+        <dc:Bounds x="870" y="1170" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1khdw0d_di" bpmnElement="Activity_1khdw0d">
+        <dc:Bounds x="720" y="1170" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0e0ib73_di" bpmnElement="Activity_0e0ib73">
+        <dc:Bounds x="1230" y="820" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0anryr2_di" bpmnElement="Gateway_0anryr2" isMarkerVisible="true">
+        <dc:Bounds x="2025" y="1185" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_034m8el_di" bpmnElement="Event_034m8el">
+        <dc:Bounds x="2812" y="1192" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2794" y="1235" width="73" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_08aa214_di" bpmnElement="Gateway_1nestpx">
+        <dc:Bounds x="1415" y="912" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1477" y="927" width="87" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_17crszz_di" bpmnElement="Activity_17crszz">
+        <dc:Bounds x="860" y="800" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0apn923_di" bpmnElement="Activity_0apn923">
+        <dc:Bounds x="860" y="710" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_016she9_di" bpmnElement="Gateway_016she9" isMarkerVisible="true">
+        <dc:Bounds x="1755" y="375" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0um97y8_di" bpmnElement="Gateway_0um97y8" isMarkerVisible="true">
+        <dc:Bounds x="2085" y="275" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_15grn2x_di" bpmnElement="Activity_15grn2x">
+        <dc:Bounds x="2490" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1bkd18e_di" bpmnElement="Activity_1bkd18e">
+        <dc:Bounds x="2340" y="170" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_14rb75p_di" bpmnElement="Gateway_1qyeyr3">
+        <dc:Bounds x="2245" y="145" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1pyghni_di" bpmnElement="Event_1pyghni">
+        <dc:Bounds x="2812" y="192" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2798" y="235" width="65" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_03pqh1c_di" bpmnElement="Activity_0idmigq">
+        <dc:Bounds x="2340" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_11ru67o_di" bpmnElement="Gateway_11ru67o" isMarkerVisible="true">
+        <dc:Bounds x="2085" y="445" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_033fo4d_di" bpmnElement="Activity_033fo4d">
+        <dc:Bounds x="2490" y="530" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1w3z8fv_di" bpmnElement="Activity_1w3z8fv">
+        <dc:Bounds x="2340" y="530" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1shvd4v_di" bpmnElement="Gateway_1x7a20i">
+        <dc:Bounds x="2245" y="545" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1044r27_di" bpmnElement="Event_1044r27">
+        <dc:Bounds x="2812" y="552" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2794" y="595" width="73" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_02o5inz_di" bpmnElement="Activity_02o5inz">
+        <dc:Bounds x="2340" y="620" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1un134z_di" bpmnElement="Activity_1un134z">
+        <dc:Bounds x="2571" y="870" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0ungwxy_di" bpmnElement="Gateway_0ungwxy" isMarkerVisible="true">
+        <dc:Bounds x="2365" y="1035" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_18ktc1g_di" bpmnElement="Event_18ktc1g">
+        <dc:Bounds x="2812" y="892" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2800" y="935" width="61" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0agm82t_di" bpmnElement="Event_0agm82t">
+        <dc:Bounds x="2812" y="1042" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2787" y="1085" width="87" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1jj8esu_di" bpmnElement="Gateway_1jj8esu" isMarkerVisible="true">
+        <dc:Bounds x="2025" y="1375" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1hpzsuo_di" bpmnElement="Gateway_1hpzsuo" isMarkerVisible="true">
+        <dc:Bounds x="2465" y="1495" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0b9wb8a_di" bpmnElement="Event_0b9wb8a">
+        <dc:Bounds x="2812" y="1502" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2802" y="1545" width="57" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0s3zwzk_di" bpmnElement="Activity_0s3zwzk">
+        <dc:Bounds x="2560" y="1640" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1fxzb9w_di" bpmnElement="Event_1fxzb9w">
+        <dc:Bounds x="2812" y="1662" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2794" y="1705" width="73" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1m26v1d_di" bpmnElement="Activity_1m26v1d">
+        <dc:Bounds x="2610" y="1360" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1xv106a_di" bpmnElement="Event_1xv106a">
+        <dc:Bounds x="2812" y="1382" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2794" y="1425" width="73" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_11na3qy_di" bpmnElement="Gateway_09bt9ls">
+        <dc:Bounds x="1045" y="912" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="989" y="962" width="61" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1dtmq6f_di" bpmnElement="Activity_1dtmq6f">
+        <dc:Bounds x="1230" y="1020" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_094ny02_di" bpmnElement="Gateway_1xeyr55">
+        <dc:Bounds x="1125" y="912" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0st32a3_di" bpmnElement="Gateway_0st32a3" isMarkerVisible="true">
+        <dc:Bounds x="1895" y="1185" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0ml5pxn_di" bpmnElement="Activity_0ml5pxn">
+        <dc:Bounds x="870" y="990" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1gzmgox_di" bpmnElement="Activity_1gzmgox">
+        <dc:Bounds x="2610" y="1480" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0hbqc4v_di" bpmnElement="Activity_0hbqc4v">
+        <dc:Bounds x="2571" y="1170" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0srkgkc_di" bpmnElement="Activity_0srkgkc">
+        <dc:Bounds x="2571" y="1020" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_0xcar6v_di" bpmnElement="Gateway_0xcar6v" isMarkerVisible="true">
+        <dc:Bounds x="2465" y="1375" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1ygwals_di" bpmnElement="Event_1ygwals">
+        <dc:Bounds x="2812" y="1292" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2802" y="1335" width="57" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_09n5oi7_di" bpmnElement="Activity_09n5oi7">
+        <dc:Bounds x="2490" y="430" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0qbcjvx_di" bpmnElement="Activity_0qbcjvx">
+        <dc:Bounds x="2340" y="430" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0y6plur_di" bpmnElement="Event_0y6plur">
+        <dc:Bounds x="2812" y="452" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2786" y="495" width="89" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_07x632g_di" bpmnElement="Event_07x632g">
+        <dc:Bounds x="2812" y="282" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2786" y="325" width="89" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1g11ccl_di" bpmnElement="Activity_1g11ccl">
+        <dc:Bounds x="2340" y="260" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1waerkl_di" bpmnElement="Activity_1waerkl">
+        <dc:Bounds x="2490" y="260" width="100" height="80" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

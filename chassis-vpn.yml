@@ -1,0 +1,35 @@
+services:
+  chassis-vpn:
+    build:
+      context: ./chassis-vpn
+      dockerfile: Dockerfile
+    environment:
+      # CA and client certificates for vpn
+      DAYS: 3650
+      PASS: changeme
+      SUBJECT: /C=IT/L=Genoa/O=FDT/CN
+      PORT: 8880
+      SIZE: 1024
+      GW: ${net_mgmt_gateway}
+    volumes:
+      - ./config/chassis-vpn/:/etc/openvpn
+    hostname: chassis-vpn
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+     # iptables -t nat -I PREROUTING -p tcp --dport 8880 -j DNAT --to-destination 10.0.0.222:8880
+     - "8880:8880/tcp"
+     # iptables -t nat -I PREROUTING -p tcp --dport 8881 -j DNAT --to-destination 10.0.0.222:8881
+     - "8881:8881/tcp"
+    #entrypoint: tail -f /dev/null
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    depends_on:
+      - docker_api_proxy
+    networks:
+      # eth1
+      z98_simint:
+      # eth2
+      zzz999_management:
+        ipv4_address: 10.0.0.222

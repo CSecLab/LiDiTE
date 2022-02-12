@@ -1,0 +1,115 @@
+version: '3'
+services:
+  # Ditto Frontend
+  frontend:
+    build:
+      context: ./ditto-nginx
+      args:
+        NGINX_VERSION: 1.19.10
+    image: registry.csec.dibris.unige.it:5000/fdt-ditto-nginx
+    depends_on: ["gateway"]
+    networks:
+      a25_ind_enterprise:
+        ipv4_address: 172.16.10.99
+      zzz999_management:
+        ipv4_address: 10.0.0.20
+  # Vanilla Ditto
+  policies:
+    image: docker.io/eclipse/ditto-policies:1.5.1
+    restart: on-failure
+    networks:
+      a25_ind_enterprise:
+        aliases:
+          - ditto-cluster
+    environment:
+      - TZ=Europe/Berlin
+      - INSTANCE_INDEX=1
+      - BIND_HOSTNAME=0.0.0.0
+      - OPENJ9_JAVA_OPTIONS=-XX:+ExitOnOutOfMemoryError -Xtune:virtualized -Xss512k -XX:MaxRAMPercentage=80 -Dakka.coordinated-shutdown.exit-jvm=on -Dakka.cluster.shutdown-after-unsuccessful-join-seed-nodes=120s
+      - MONGO_DB_HOSTNAME=mongodb
+    command: java -jar starter.jar
+  things:
+    image: docker.io/eclipse/ditto-things:1.5.1
+    restart: on-failure
+    networks:
+      a25_ind_enterprise:
+        aliases:
+          - ditto-cluster
+    depends_on:
+      - policies
+    environment:
+      - TZ=Europe/Berlin
+      - INSTANCE_INDEX=1
+      - BIND_HOSTNAME=0.0.0.0
+      - OPENJ9_JAVA_OPTIONS=-XX:+ExitOnOutOfMemoryError -Xtune:virtualized -Xss512k -XX:MaxRAMPercentage=80 -Dakka.coordinated-shutdown.exit-jvm=on -Dakka.cluster.shutdown-after-unsuccessful-join-seed-nodes=120s
+      - MONGO_DB_HOSTNAME=mongodb
+    command: java -jar starter.jar
+  things-search:
+    image: docker.io/eclipse/ditto-things-search:1.5.1
+    restart: on-failure
+    networks:
+      a25_ind_enterprise:
+        aliases:
+          - ditto-cluster
+    depends_on:
+      - policies
+    environment:
+      - TZ=Europe/Berlin
+      - INSTANCE_INDEX=1
+      - BIND_HOSTNAME=0.0.0.0
+      - OPENJ9_JAVA_OPTIONS=-XX:+ExitOnOutOfMemoryError -Xtune:virtualized -Xss512k -XX:MaxRAMPercentage=80 -Dakka.coordinated-shutdown.exit-jvm=on -Dakka.cluster.shutdown-after-unsuccessful-join-seed-nodes=120s
+      - MONGO_DB_HOSTNAME=mongodb
+    command: java -jar starter.jar
+  concierge:
+    image: docker.io/eclipse/ditto-concierge:1.5.1
+    restart: on-failure
+    networks:
+      a25_ind_enterprise:
+        aliases:
+          - ditto-cluster
+    depends_on:
+      - policies
+    environment:
+      - TZ=Europe/Berlin
+      - INSTANCE_INDEX=1
+      - BIND_HOSTNAME=0.0.0.0
+      - OPENJ9_JAVA_OPTIONS=-XX:+ExitOnOutOfMemoryError -Xtune:virtualized -Xss512k -XX:MaxRAMPercentage=80 -Dakka.coordinated-shutdown.exit-jvm=on -Dakka.cluster.shutdown-after-unsuccessful-join-seed-nodes=120s
+      - MONGO_DB_HOSTNAME=mongodb
+    command: java -jar starter.jar
+  connectivity:
+    image: docker.io/eclipse/ditto-connectivity:1.5.1
+    mem_limit: 384m
+    restart: on-failure
+    networks:
+      a25_ind_enterprise:
+        aliases:
+          - ditto-cluster
+    depends_on:
+      - policies
+      - concierge
+    environment:
+      - TZ=Europe/Berlin
+      - INSTANCE_INDEX=1
+      - BIND_HOSTNAME=0.0.0.0
+      - OPENJ9_JAVA_OPTIONS=-XX:+ExitOnOutOfMemoryError -Xtune:virtualized -Xss512k -XX:MaxRAMPercentage=80 -Dakka.coordinated-shutdown.exit-jvm=on -Dakka.cluster.shutdown-after-unsuccessful-join-seed-nodes=120s
+      - MONGO_DB_HOSTNAME=mongodb
+    command: java -jar starter.jar
+  gateway:
+    image: docker.io/eclipse/ditto-gateway:1.5.1
+    restart: on-failure
+    networks:
+      a25_ind_enterprise:
+        aliases:
+          - ditto-cluster
+          - ditto
+    depends_on:
+      - policies
+      - concierge
+    environment:
+      - TZ=Europe/Berlin
+      - INSTANCE_INDEX=1
+      - BIND_HOSTNAME=0.0.0.0
+      - ENABLE_PRE_AUTHENTICATION=true
+      - OPENJ9_JAVA_OPTIONS=-XX:+ExitOnOutOfMemoryError -Xtune:virtualized -Xss512k -XX:MaxRAMPercentage=80 -Dakka.coordinated-shutdown.exit-jvm=on -Dakka.cluster.shutdown-after-unsuccessful-join-seed-nodes=120s
+    command: java -Dditto.gateway.authentication.devops.password=password -jar starter.jar
+

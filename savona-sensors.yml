@@ -1,0 +1,87 @@
+version: '3'
+services:
+  sun-simulator:
+    depends_on: [ 'register' ]
+    build: ./scriptablesensor
+    image: registry.csec.dibris.unige.it:5000/fdt-scriptablesensor
+    extra_hosts:
+      frontend: 172.16.10.99
+    environment:
+      FDT_DITTO_URL: ws://frontend
+      FDT_DITTO_USERNAME: sun-simulator
+      FDT_DITTO_PASSWORD: secret
+      FDT_SENSOR_JSON: /FDT/sun-simulator/sun-simulator.json
+      FDT_SENSOR_JS: /FDT/sun-simulator/sun-simulator.js
+      FDT_RESTUTIL_INSECURE: 'true'
+    volumes: 
+    - ./config/scriptablesensor:/FDT:ro
+    - ./config/scriptablesensor-cache/solar-data-2016.json:/var/cache/scriptablesensor/347bcae3021fbf561ff11fc50d6a240eaa78699743c752bbda89a7c3062fdbdf:ro
+    tmpfs:
+    - /var/cache/scriptablesensor
+    networks:
+      zzz999_management: {} # The sun data download does not belong to the scenario traffic
+      a30_industrial: {}
+  people-simulator:
+    depends_on: [ 'register' ]
+    build: ./scriptablesensor
+    image: registry.csec.dibris.unige.it:5000/fdt-scriptablesensor
+    extra_hosts:
+      frontend: 172.16.10.99
+    environment:
+      FDT_DITTO_URL: ws://frontend
+      FDT_DITTO_USERNAME: people-simulator
+      FDT_DITTO_PASSWORD: secret
+      FDT_SENSOR_JSON: /FDT/people-simulator/people-simulator.json
+      FDT_SENSOR_JS: /FDT/people-simulator/people-simulator.js
+    volumes: 
+    - ./config/scriptablesensor:/FDT:ro
+    networks:
+      a30_industrial: {}
+  energy-store-1:
+    depends_on: [ 'register' ]
+    build: ./scriptablesensor
+    image: registry.csec.dibris.unige.it:5000/fdt-scriptablesensor
+    extra_hosts:
+      frontend: 172.16.10.99
+    environment:
+      FDT_DITTO_URL: ws://frontend
+      FDT_DITTO_USERNAME: energy-store-1
+      FDT_DITTO_PASSWORD: secret
+      FDT_SENSOR_JSON: /FDT/energy-store-1/energy-store-1.json
+      FDT_SENSOR_JS: /FDT/energy-store-1/energy-store-1.js
+    volumes: 
+    - ./config/scriptablesensor:/FDT:ro
+    networks:
+      a30_industrial: {}
+  solar-panel-1:
+    depends_on: [ 'register' ]
+    build: ./scriptablesensor
+    image: registry.csec.dibris.unige.it:5000/fdt-scriptablesensor
+    extra_hosts:
+      frontend: 172.16.10.99
+    environment:
+      FDT_DITTO_URL: ws://frontend
+      FDT_DITTO_USERNAME: solar-panel-1
+      FDT_DITTO_PASSWORD: secret
+      FDT_SENSOR_JSON: /FDT/solar-panel-1/solar-panel-1.json
+      FDT_SENSOR_JS: /FDT/solar-panel-1/solar-panel-1.js
+    volumes: 
+    - ./config/scriptablesensor:/FDT:ro
+    networks:
+      a30_industrial: {}
+  gas-generator-1:
+    depends_on: [ 'register' ]
+    build: ./scriptablesensor
+    image: registry.csec.dibris.unige.it:5000/fdt-scriptablesensor
+    extra_hosts:
+      frontend: 172.16.10.99
+    environment:
+      FDT_DITTO_URL: ws://frontend
+      FDT_DITTO_USERNAME: gas-generator-1
+      FDT_DITTO_PASSWORD: secret
+      FDT_SENSOR_JSON: /FDT/gas-generator-1/gas-generator-1.json
+      FDT_SENSOR_JS: /FDT/gas-generator-1/gas-generator-1.js
+    volumes: 
+    - ./config/scriptablesensor:/FDT:ro
+    networks:
+      a30_industrial: {}

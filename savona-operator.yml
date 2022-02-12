@@ -1,0 +1,24 @@
+version: '3'
+services:
+  operator:
+    image: registry.csec.dibris.unige.it:5000/fdt-operator
+    build: ./kvm-docker
+    volumes:
+      - ./config/windows/win.qcow2:/image/image
+    environment:
+      - 'KVM_CPU_OPTS=-m 8192 -smp 4,sockets=4,cores=1,threads=1 -vnc 0.0.0.0:1 -device usb-ehci,id=usb,bus=pci.0,addr=0x9 -device usb-tablet' 
+      - 'AUTO_ATTACH=N'
+      - 'ATTACH_IFACES=eth0 eth1'
+      - 'USE_CLONE=Y'
+      - 'DNS_SERVERS=192.168.100.53'
+      - 'CONT_IPS=eth0:192.168.50.101,eth1:10.0.0.25'
+      - 'DISPLAY_X=1920'
+      - 'DISPLAY_Y=1080'
+    privileged: true
+    devices:
+      - /dev/kvm
+    networks:
+      a20_enterprise: 
+        ipv4_address: 192.168.50.100
+      zzz999_management:
+        ipv4_address: 10.0.0.24

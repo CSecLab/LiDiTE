@@ -1,0 +1,358 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_08l5lqf" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="4.11.1" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.14.0">
+  <bpmn:process id="scale-human-clients" name="Scale human clients" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_1o62rb1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_1o62rb1" sourceRef="StartEvent_1" targetRef="Activity_1n3hi4v" />
+    <bpmn:serviceTask id="Activity_1n3hi4v" name="Get people count">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="headers">
+              <camunda:script scriptFormat="groovy">String authorization = "${ditto_username}:${ditto_password}".bytes.encodeBase64().toString()
+
+def headers = [
+  Authorization: "Basic ${authorization}".toString()
+]
+
+return headers</camunda:script>
+            </camunda:inputParameter>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">${ditto_url}/api/2/things/${ditto_thing_id}/features/people/properties/count</camunda:inputParameter>
+            <camunda:outputParameter name="people_count">
+              <camunda:script scriptFormat="groovy">if (debug) {
+  println "Response: ${response}"
+}
+
+double peopleCountDouble = response as double
+
+if (debug) {
+  println "Current people count ${peopleCountDouble.round()}"
+}
+
+peopleCountDouble /= cluster_size
+
+if (debug) {
+  println "Clusterized people count ${peopleCountDouble.round()}"
+}
+
+int peopleCount = peopleCountDouble.round()
+
+
+return peopleCount</camunda:script>
+            </camunda:outputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+        <camunda:executionListener event="end">
+          <camunda:script scriptFormat="groovy">println "[people:${compose_service_name}] Clusterized people count = ${people_count}"</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1o62rb1</bpmn:incoming>
+      <bpmn:outgoing>Flow_0puenxh</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_0w1j10s" name="Get container list">
+      <bpmn:extensionElements>
+        <camunda:connector>
+          <camunda:inputOutput>
+            <camunda:inputParameter name="method">GET</camunda:inputParameter>
+            <camunda:inputParameter name="url">
+              <camunda:script scriptFormat="groovy">def filter = "{\"label\":[\"com.docker.compose.service=${compose_service_name}\"]}"
+
+def encoded_filter = java.net.URLEncoder.encode(filter, "UTF-8")
+
+def baseurl = "${docker_api_proxy}/containers/json?all=true&amp;filters=${encoded_filter}"
+
+return baseurl.toString()
+</camunda:script>
+            </camunda:inputParameter>
+            <camunda:outputParameter name="containers">
+              <camunda:script scriptFormat="groovy">import groovy.json.JsonSlurper
+import groovy.json.JsonOutput
+
+if (statusCode != 200) {
+  throw new RuntimeException("Not 200 (" + statusCode.toString() + ")")
+}
+
+def jsonSlurper = new JsonSlurper()
+def object = jsonSlurper.parseText(response)
+
+assert object instanceof List
+
+if (debug) {
+  println "Got ${object.size} containers"
+}
+
+def fixGroovyTypes(it) {
+  if (it instanceof List) {
+    def new_list = new ArrayList&lt;&gt;()
+    it.each { el -&gt; new_list.add(fixGroovyTypes(el)) }
+    return new_list
+  }
+  if (it instanceof Map) {
+    def new_map = [:]
+    it.each { k,v -&gt; new_map[k] = fixGroovyTypes(v) }
+    return new_map
+  }
+  return it
+}
+
+def fixed = fixGroovyTypes(object)
+
+def extractTrailingNumber = { it -&gt;
+  return it.replaceAll('[^0-9]', '') as int
+}
+
+return fixed.sort { extractTrailingNumber(it.Names[0]) }</camunda:script>
+            </camunda:outputParameter>
+          </camunda:inputOutput>
+          <camunda:connectorId>http-connector</camunda:connectorId>
+        </camunda:connector>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">println "[people:${compose_service_name}] Starting GET of container list"</camunda:script>
+        </camunda:executionListener>
+        <camunda:executionListener event="end">
+          <camunda:script scriptFormat="groovy">println "[people:${compose_service_name}] Got container list (size = ${containers.size})"</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0puenxh</bpmn:incoming>
+      <bpmn:outgoing>Flow_1o3eo3v</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_1o3eo3v" sourceRef="Activity_0w1j10s" targetRef="Activity_1vqjjqz" />
+    <bpmn:scriptTask id="Activity_1vqjjqz" name="Get example container" scriptFormat="groovy" camunda:resultVariable="example_container">
+      <bpmn:extensionElements>
+        <camunda:executionListener event="end">
+          <camunda:script scriptFormat="groovy">println "[people:${compose_service_name}] Got example container"</camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1o3eo3v</bpmn:incoming>
+      <bpmn:outgoing>Flow_0b4248k</bpmn:outgoing>
+      <bpmn:script>def container = containers[0]
+return container</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:scriptTask id="Activity_14mwh9k" name="Create missing containers" scriptFormat="groovy">
+      <bpmn:extensionElements>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">println "[people:${compose_service_name}] Starting container creation" </camunda:script>
+        </camunda:executionListener>
+        <camunda:executionListener event="end">
+          <camunda:script scriptFormat="groovy">println "[people:${compose_service_name}] Terminated container creation" </camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0b4248k</bpmn:incoming>
+      <bpmn:outgoing>Flow_0qu4gjg</bpmn:outgoing>
+      <bpmn:script>import groovy.json.JsonOutput
+
+import org.camunda.connect.httpclient.impl.HttpConnectorImpl
+import groovy.json.JsonSlurper
+
+def http = new HttpConnectorImpl()
+def jsonSlurper = new JsonSlurper()
+
+def container_exists = { int instance -&gt;
+  boolean exists = containers.any { it -&gt; it.Labels["com.docker.compose.container-number"] == instance.toString() }
+  if (debug) {
+    if (exists) println "Container instance ${instance} was found"
+    else println "Container instance ${instance} was not found"
+  }
+  return exists
+}
+
+if (people_count == 0) return
+(1..people_count).each { i -&gt;
+  def exists = container_exists(i)
+
+  if (exists) {
+    return
+  }
+
+  def new_container_name = "${example_container.Labels['com.docker.compose.project']}_${example_container.Labels['com.docker.compose.service']}_${i}"
+  def new_container = [
+    Image: example_container.Image,
+    NetworkDisabled: true,
+    Labels: example_container.Labels.clone()
+  ]
+  new_container.Labels["com.docker.compose.container-number"] = i.toString()
+  
+  def resp = http.createRequest()
+    .post()
+    .url("${docker_api_proxy}/containers/create?name=${new_container_name}".toString())
+    .contentType("application/json")
+    .payload(JsonOutput.toJson(new_container))
+    .execute();
+  
+  if (resp.statusCode != 200 &amp;&amp; resp.statusCode != 201) {
+    throw new RuntimeException("Wrong statuscode " + resp.statusCode + " (" + resp.response + ')')
+  }
+
+  if (debug) {
+    println "Created container ${new_container_name}"
+  }
+}
+</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:sequenceFlow id="Flow_0b4248k" sourceRef="Activity_1vqjjqz" targetRef="Activity_14mwh9k" />
+    <bpmn:endEvent id="Event_1kcq0fm">
+      <bpmn:incoming>Flow_0g3swns</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0qu4gjg" sourceRef="Activity_14mwh9k" targetRef="Activity_1g6yjal" />
+    <bpmn:scriptTask id="Activity_1g6yjal" name="Start/stop containers" scriptFormat="groovy">
+      <bpmn:extensionElements>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">println "[people:${compose_service_name}] Starting/stopping containers" </camunda:script>
+        </camunda:executionListener>
+        <camunda:executionListener event="end">
+          <camunda:script scriptFormat="groovy">println "[people:${compose_service_name}] Finished starting/stopping containers" </camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0qu4gjg</bpmn:incoming>
+      <bpmn:outgoing>Flow_0sm6mxz</bpmn:outgoing>
+      <bpmn:script>import groovy.json.JsonOutput
+
+import org.camunda.connect.httpclient.impl.HttpConnectorImpl
+import groovy.json.JsonSlurper
+
+def http = new HttpConnectorImpl()
+def jsonSlurper = new JsonSlurper()
+
+def get_container_name = { i -&gt; "${example_container.Labels['com.docker.compose.project']}_${example_container.Labels['com.docker.compose.service']}_${i}" }
+
+def run_container_action = { name, action -&gt;
+  def apiURL = "${docker_api_proxy}/containers/${name}/${action}".toString()
+  def resp = http.createRequest()
+    .post()
+    .url(apiURL)
+    .execute();
+  if (debug) {
+    println "${action} container ${name} (${resp.statusCode} ${resp.response})"
+  }
+}
+
+def start_container = { name -&gt;
+  def apiURL = "${docker_api_proxy}/containers/${name}/json".toString()
+  def resp = http.createRequest()
+    .get()
+    .url(apiURL)
+    .execute();
+  def respJSON = jsonSlurper.parseText(resp.response)
+  if (respJSON.State != "running") {
+    run_container_action(name, "start")
+  } else if (debug) {
+    println("Skipped start for ${name}, current state = ${respJSON.State}")
+  }
+}
+def stop_container = { name -&gt; run_container_action(name, "kill?signal=SIGTERM") }
+
+if (people_count == 0) {
+  if (debug) {
+    println("No ")
+  }
+  containers.each { ctr -&gt;
+    def ctrName = ctr.Names[0].substring(1)
+    if (ctr.State == "running") {
+      stop_container(ctrName)
+    }
+  } 
+} else {
+  (1..people_count).each { i -&gt;
+    def container_name = get_container_name(i)
+    start_container(container_name)
+  }
+}
+</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:sequenceFlow id="Flow_0sm6mxz" sourceRef="Activity_1g6yjal" targetRef="Activity_0clglji" />
+    <bpmn:sequenceFlow id="Flow_0puenxh" sourceRef="Activity_1n3hi4v" targetRef="Activity_0w1j10s" />
+    <bpmn:scriptTask id="Activity_0clglji" name="Delete extraneous containers" scriptFormat="groovy">
+      <bpmn:extensionElements>
+        <camunda:executionListener event="start">
+          <camunda:script scriptFormat="groovy">println "[people:${compose_service_name}] Starting deletion of extra containers" </camunda:script>
+        </camunda:executionListener>
+        <camunda:executionListener event="end">
+          <camunda:script scriptFormat="groovy">println "[people:${compose_service_name}] Ended deletion of extra containers" </camunda:script>
+        </camunda:executionListener>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0sm6mxz</bpmn:incoming>
+      <bpmn:outgoing>Flow_0g3swns</bpmn:outgoing>
+      <bpmn:script>import groovy.json.JsonOutput
+
+import org.camunda.connect.httpclient.impl.HttpConnectorImpl
+
+def http = new HttpConnectorImpl()
+
+def count = containers.size
+
+containers.eachWithIndex { ctr, i -&gt;
+  if (i &gt; 0 &amp;&amp; i &gt; people_count-1) {
+    def resp = http.createRequest()
+      .delete()
+      .url("${docker_api_proxy}/containers/${ctr.Id}?v=true&amp;force=true".toString())
+      .execute();
+    if (debug) {
+      println "Requested deletion of ${ctr.Names} ${resp.statusCode} ${resp.response}"
+    }
+  }
+}
+
+</bpmn:script>
+    </bpmn:scriptTask>
+    <bpmn:sequenceFlow id="Flow_0g3swns" sourceRef="Activity_0clglji" targetRef="Event_1kcq0fm" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="scale-human-clients">
+      <bpmndi:BPMNEdge id="Flow_0g3swns_di" bpmnElement="Flow_0g3swns">
+        <di:waypoint x="1170" y="120" />
+        <di:waypoint x="1242" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0puenxh_di" bpmnElement="Flow_0puenxh">
+        <di:waypoint x="360" y="120" />
+        <di:waypoint x="430" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0sm6mxz_di" bpmnElement="Flow_0sm6mxz">
+        <di:waypoint x="1010" y="120" />
+        <di:waypoint x="1070" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0qu4gjg_di" bpmnElement="Flow_0qu4gjg">
+        <di:waypoint x="860" y="120" />
+        <di:waypoint x="910" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0b4248k_di" bpmnElement="Flow_0b4248k">
+        <di:waypoint x="700" y="120" />
+        <di:waypoint x="760" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1o3eo3v_di" bpmnElement="Flow_1o3eo3v">
+        <di:waypoint x="530" y="120" />
+        <di:waypoint x="600" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1o62rb1_di" bpmnElement="Flow_1o62rb1">
+        <di:waypoint x="198" y="120" />
+        <di:waypoint x="260" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="162" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1loqit2_di" bpmnElement="Activity_1n3hi4v">
+        <dc:Bounds x="260" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0rl11gz_di" bpmnElement="Activity_0w1j10s">
+        <dc:Bounds x="430" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1vqjjqz_di" bpmnElement="Activity_1vqjjqz">
+        <dc:Bounds x="600" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1yj715q_di" bpmnElement="Activity_14mwh9k">
+        <dc:Bounds x="760" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1kcq0fm_di" bpmnElement="Event_1kcq0fm">
+        <dc:Bounds x="1242" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1g6yjal_di" bpmnElement="Activity_1g6yjal">
+        <dc:Bounds x="910" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0clglji_di" bpmnElement="Activity_0clglji">
+        <dc:Bounds x="1070" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

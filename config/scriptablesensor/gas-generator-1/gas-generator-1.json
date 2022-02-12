@@ -1,0 +1,63 @@
+{
+	"name": "FDT:gas-generator-1",
+	"features": {
+		"turbine": {
+			"type": "systemSimulator",
+			"stateRefreshIntervalSeconds": 1.0,
+			"integrator": {
+				"type": "RungeKutta",
+				"stepSize": 0.1,
+				"checkTolerance": 1e-9,
+				"checkMaxTimeBetween": 1.0,
+				"checkMaxIterations": 1000
+			},
+			"system": {
+			  "A": [
+			  		[ -0.3076,  0.0 ],
+					[  0.0008, -0.2 ]
+			  ],
+			  "B": [
+			  		[ 4750, 29993, -0.1 ],
+					[    1,    45,  0.2 ]
+			  ]
+			},
+			"initialState": [ 0, 20.0 ],
+			"initialInputs": [ 0.0, 0, 20.0 ],
+			"featureMappings": {
+				"state": {
+					"rpm": 0,
+					"egt": 1
+				},
+				"fromState": {},
+				"fromJavaScript": {
+					"state": "getStateName",
+					"frequency": "getFrequencyHz",
+					"power-electric": "getPowerKw",
+					"power-thermal": "getPowerThermal",
+					"gearbox-engaged": "getGearboxEngaged",
+					"ignition-valve-open": "getIgnitionValve",
+					"startup-valve-open": "getStartupValve"
+				}
+			},
+			"eventHandlers": {
+				"g-stop": [
+					{ "functionName": "engageGearbox", "stateIndex": 0, "threshold": 80000.0, "direction": "INCREASING" },
+					{ "functionName": "disengageGearbox", "stateIndex": 0, "threshold": 80000.0, "direction": "DECREASING" },
+					{ "functionName": "ignition", "stateIndex": 0, "threshold": 15000.0, "direction": "INCREASING" },
+					{ "functionName": "cooledDown", "stateIndex": 1, "threshold": 100.0, "direction": "DECREASING" }
+				]
+			},
+			"stepHandlers": [
+				{ "functionName": "stepCallback" },
+				{ "functionName": "fixedStepCallback", "every": 1.0 }
+			],
+			"intervalEndHandlers": [
+				"endHandler",
+				"injectNoise"
+			]
+		}
+	},
+	"messageCallbackFunctions": [
+		{ "functionName": "handleCommand", "topic": "command" }
+	]
+}

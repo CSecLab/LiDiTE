@@ -1,0 +1,6 @@
+version: '3'
+services:
+  # Workflow visualizer
+  workflows_viewer:
+    volumes:
+    - ./config/camunda/definitions:/srv/workflows:ro

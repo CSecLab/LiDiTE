@@ -1,0 +1,50 @@
+services:
+  crew:
+    image: registry.csec.dibris.unige.it:5000/maritimecr-crew
+    build:
+     context: ../
+     dockerfile: Dockerfile
+    volumes:
+      #- ./cirros-0.5.1-x86_64-disk.img:/image/image
+      #- ../../config/crew/win-crew-qemu.qcow2:/image/image
+      - ../../../../firewalls/fortinet/fortios.qcow2:/image/image
+      - ./scripts/:/scripts/
+    environment:
+      #- 'KVM_CPU_OPTS=-m 4096 -smp 4,sockets=4,cores=1,threads=1 -vnc 0.0.0.0:1 -device usb-ehci,id=usb,bus=pci.0,addr=0x9 -device usb-tablet' 
+      #- 'KVM_CPU_OPTS=-m 1024 -smp 1 -vnc 0.0.0.0:1 -device usb-ehci,id=usb,bus=pci.0,addr=0x9 -device usb-tablet -chardev socket,id=S9999,server,nowait,port=9999,host=0.0.0.0 -serial chardev:S9999 -device isa-serial,chardev=S9999,id=serial0' 
+      - 'KVM_CPU_OPTS=-m 1024 -smp 1 -vnc 0.0.0.0:1 -device usb-ehci,id=usb,bus=pci.0,addr=0x9 -device usb-tablet -chardev socket,id=S9999,server,nowait,port=9999,host=0.0.0.0 -serial chardev:S9999' 
+      - 'KVM_CPU_OPTS=-m 1024 -smp 1 -vnc 0.0.0.0:1 -device usb-ehci,id=usb,bus=pci.0,addr=0x9 -device usb-tablet -serial telnet:localhost:9999,server,nowait' 
+      - 'AUTO_ATTACH=N'
+      - 'ATTACH_IFACES=eth0 eth1'
+      #- 'USE_CLONE=N'
+      - 'USE_CLONE=Y'
+      - 'DNS_SERVERS=8.8.8.8'
+      - 'CONT_IPS=eth0:192.168.250.101,eth1:10.1.1.151'
+      #- 'CONT_IPS=eth1:12.3.2.151'
+    privileged: true
+    networks:
+      a20_enterprise: 
+        ipv4_address: 192.168.250.100
+      zzz999_management:
+        ipv4_address: 10.1.1.150
+
+networks:
+  a20_enterprise:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "true"
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.250.0/24
+          gateway: 192.168.250.1
+
+  zzz999_management:
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "true"
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.1.1.0/24
+          gateway: 10.1.1.1

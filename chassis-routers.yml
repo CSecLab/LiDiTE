@@ -1,0 +1,91 @@
+version: '3'
+services:
+  isp:
+    build: ./openwrt
+    image: registry.csec.dibris.unige.it:5000/fdt-openwrt
+    hostname: rt-isp
+    volumes:
+      - ./config/isp/bgpd.conf:/etc/quagga/bgpd.conf
+      - ./config/isp/network:/etc/uci-defaults/50_chassis_network
+      - ./config/isp/firewall:/etc/uci-defaults/60_chassis_firewall
+      - ./config/isp/firewall.user:/etc/firewall.user
+    environment:
+      PASSWORD_DEFAULT: admin123
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    networks:
+      # eth0
+      z90_providernet:
+      # eth1
+      z98_simint:
+      # eth2
+      z99_extnet:
+        ipv4_address: 172.16.255.2
+      # eth3
+      zzz999_management:
+        ipv4_address: 10.0.0.10
+
+  perimeter:
+    build: ./openwrt
+    image: registry.csec.dibris.unige.it:5000/fdt-openwrt
+    hostname: fw-perimeter
+    volumes:
+      - ./config/perimeter/ospfd.conf:/etc/quagga/ospfd.conf
+      - ./config/perimeter/bgpd.conf:/etc/quagga/bgpd.conf
+      - ./config/perimeter/network:/etc/uci-defaults/50_chassis_network
+      - ./config/perimeter/firewall:/etc/uci-defaults/60_chassis_firewall
+      - ./config/perimeter/firewall.user:/etc/firewall.user
+    environment:
+      PASSWORD_DEFAULT: admin123
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    networks:
+      a20_enterprise:
+      z90_providernet:
+      z95_dmz:
+      z96_perimeter2ent:
+      zzz999_management:
+        ipv4_address: 10.0.0.11
+
+  enterprise:
+    build: ./openwrt
+    image: registry.csec.dibris.unige.it:5000/fdt-openwrt
+    hostname: fw-enterprise
+    volumes:
+      - ./config/enterprise/ospfd.conf:/etc/quagga/ospfd.conf
+      - ./config/enterprise/network:/etc/uci-defaults/50_chassis_network
+      - ./config/enterprise/firewall:/etc/uci-defaults/60_chassis_firewall
+      - ./config/enterprise/firewall.user:/etc/firewall.user
+    environment:
+      PASSWORD_DEFAULT: admin123
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    networks:
+      a25_ind_enterprise:
+      z96_perimeter2ent:
+      z97_ent2ind:
+      zzz999_management:
+        ipv4_address: 10.0.0.12
+
+  industrial:
+    build: ./openwrt
+    image: registry.csec.dibris.unige.it:5000/fdt-industrial
+    hostname: fw-industrial
+    volumes:
+      - ./config/industrial/ospfd.conf:/etc/quagga/ospfd.conf
+      - ./config/industrial/network:/etc/uci-defaults/50_chassis_network
+      - ./config/industrial/firewall:/etc/uci-defaults/60_chassis_firewall
+      - ./config/industrial/firewall.user:/etc/firewall.user
+    environment:
+      PASSWORD_DEFAULT: admin123
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    networks:
+      a30_industrial:
+      z97_ent2ind:
+      zzz999_management:
+        ipv4_address: 10.0.0.13

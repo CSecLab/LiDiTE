@@ -1,0 +1,19 @@
+{
+  "name": "FDT:sun-simulator",
+  "features": {
+    "environment": {
+      "type": "javascript",
+      "updateFrequency": 10.0,
+      "components": [
+        {
+          "name": "watt-per-msq",
+          "functionName": "wattPerMsq"
+        },
+        {
+          "name": "heigth",
+          "functionName": "sunHeight"
+        }
+      ]
+    }
+  }
+}

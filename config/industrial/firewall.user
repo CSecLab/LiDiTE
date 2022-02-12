@@ -1,0 +1,2 @@
+iptables -I zone_wan_src_REJECT -j NFLOG --nflog-group 1 --nflog-prefix "[fw reject]:"
+iptables -I zone_wan_dest_REJECT -j NFLOG --nflog-group 1 --nflog-prefix "[fw reject]:"

@@ -1,0 +1,40 @@
+{
+  "policyId" : "FDT:solar-panel-1",
+  "entries" : {
+    "owner" : {
+      "subjects" : {
+        "nginx:administrator" : {
+          "type" : "The system administrator"
+        },
+        "{{ request:subjectId }}" : {
+          "type" : "Who made the original submission"
+        }
+      },
+      "resources" : {
+        "policy:/" : { "grant" : [ "READ", "WRITE" ], "revoke" : [] },
+        "thing:/" : { "grant" : [ "READ", "WRITE" ], "revoke" : [] },
+        "message:/" : { "grant" : [ "READ", "WRITE" ], "revoke" : [] }
+      }
+    },
+    "solar-panel-1" : {
+      "subjects" : {
+        "nginx:solar-panel-1" : {
+          "type" : "The solar panel"
+        }
+      },
+      "resources" : {
+        "thing:/features" : { "grant" : [ "READ", "WRITE" ], "revoke" : [] }
+      }
+    },
+    "backend" : {
+      "subjects" : {
+        "nginx:backend" : {
+          "type" : "Aggregator backend"
+        }
+      },
+      "resources" : {
+        "thing:/features" : { "grant" : [ "READ" ], "revoke" : [] }
+      }
+    }
+  }
+}

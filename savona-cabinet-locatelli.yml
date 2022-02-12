@@ -1,0 +1,41 @@
+version: '3'
+services:
+  # Cabinet
+  cabinet_locatelli:
+    build: ./cabinet
+    image: registry.csec.dibris.unige.it:5000/fdt-cabinet
+    environment:
+      - "ID=locatelli"
+      - "BASE=1560"
+      - "MAXLOAD=7500"
+      - "VERBOSE=1"
+      - "URL=tcp://docker_api_proxy:1337"
+    depends_on:
+      - docker_api_proxy
+    restart: on-failure
+    networks:
+      a30_industrial:
+       ipv4_address: 10.10.10.53
+      zzz999_management:
+       ipv4_address: 10.0.0.53
+  plc_locatelli:
+    build: ./openplc
+    image: registry.csec.dibris.unige.it:5000/fdt-openplc
+    volumes:
+    - ./config/openplc/trip.st:/data/main.st:ro
+    - ./config/openplc/modbus-slaves/cabinet-locatelli.cfg:/data/mbconfig.cfg:ro
+    networks:
+      a30_industrial:
+       ipv4_address: 10.10.10.63
+      zzz999_management:
+       ipv4_address: 10.0.0.63
+  # Client
+  client_locatelli:
+    build: ./nothing
+    image: registry.csec.dibris.unige.it:5000/fdt-nothing
+    scale: 1
+    network_mode: none
+    labels:
+      fdt.cabinetID: locatelli
+      fdt.minload: 240
+      fdt.maxload: 260

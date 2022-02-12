@@ -1,0 +1,29 @@
+version: '3'
+services:
+  # Scada LTS
+  scada:
+    extra_hosts:
+      cabinet_delfino: 10.10.10.50
+      cabinet_lagorio: 10.10.10.51
+      cabinet_marchi: 10.10.10.52
+      cabinet_locatelli: 10.10.10.53
+      cabinet_seb: 10.10.10.54
+      cabinet_biblioteca: 10.10.10.55
+    volumes:
+    - ./config/scadalts/uploads:/scada-lts-uploads:ro
+  scada_db:
+    volumes:
+    - ./config/camunda-scadalts-db:/docker-entrypoint-initdb.d:ro
+  # Camunda
+  camunda_cron:
+    environment:
+      CRON_DIR: /usr/share/camunda/cronjobs
+      INTERVAL_SECONDS: 10
+    volumes:
+    - ./config/camunda/cronjobs:/usr/share/camunda/cronjobs:ro
+  camunda_deployer:
+    build: ./camunda-scada-lts-deployer
+    environment:
+      WORKFLOWS_DIR: /usr/share/camunda/workflows
+    volumes:
+    - ./config/camunda/definitions:/usr/share/camunda/workflows:ro

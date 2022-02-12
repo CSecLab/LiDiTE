@@ -1,0 +1,430 @@
+diff --git a/WebContent/WEB-INF/jsp/publisherEdit/editHttpSender.jsp b/WebContent/WEB-INF/jsp/publisherEdit/editHttpSender.jsp
+index 87da1558b..69d67c3eb 100644
+--- a/WebContent/WEB-INF/jsp/publisherEdit/editHttpSender.jsp
++++ b/WebContent/WEB-INF/jsp/publisherEdit/editHttpSender.jsp
+@@ -244,7 +244,7 @@
+           points[points.length] = {dataPointId: selectedPoints[i].id, parameterName: selectedPoints[i].parameterName,
+                   includeTimestamp: selectedPoints[i].includeTimestamp};
+       
+-      PublisherEditDwr.saveHttpSender(name, xid, enabled, points, $get("url"), $get("usePost") == "true", 
++      PublisherEditDwr.saveHttpSender(name, xid, enabled, points, $get("url"), $get("username"), $get("password"), $get("useJSON"), $get("usePost") == "true", 
+     		  staticHeaderList, staticParameterList, cacheWarningSize, changesOnly, $get("raiseResultWarning"),
+     		  $get("dateFormat"), sendSnapshot, snapshotSendPeriods, snapshotSendPeriodType, savePublisherCB);
+   }
+@@ -253,7 +253,7 @@
+       showMessage("httpSendTestMessage", "<fmt:message key="publisherEdit.httpSender.sending"/>");
+       showMessage("httpSendTestData");
+       httpSendTestButtons(true);
+-      PublisherEditDwr.httpSenderTest($get("url"), $get("usePost") == "true", staticHeaderList, staticParameterList,
++      PublisherEditDwr.httpSenderTest($get("url"), $get("username"), $get("password"), $get("useJSON"), $get("usePost") == "true", staticHeaderList, staticParameterList,
+     		  httpSendTestCB);
+   }
+   
+@@ -312,6 +312,12 @@
+             </td>
+           </tr>
+           
++          <tr>
++            <td class="formLabelRequired"><fmt:message key="publisherEdit.httpSender.useJSON"/></td>
++            <td class="formField"><sst:checkbox id="useJSON"
++                    selectedValue="${publisher.useJSON}"/></td>
++          </tr>
++          
+           <tr>
+             <td class="formLabelRequired"><fmt:message key="publisherEdit.httpSender.url"/></td>
+             <td class="formField">
+@@ -320,6 +326,14 @@
+             </td>
+           </tr>
+           
++          <tr>
++	        <td class="formLabelRequired"><fmt:message key="publisherEdit.httpSender.credentials"/></td>
++	        <td class="formField">
++	          <fmt:message key="publisherEdit.httpSender.username"/> <input type="text" id="username" class="formShort"/>
++	          <fmt:message key="publisherEdit.httpSender.password"/> <input type="password" id="password" class="formShort"/>
++	        </td>
++	      </tr>
++          
+           <tr>
+             <td class="formLabelRequired"><fmt:message key="publisherEdit.httpSender.staticHeaders"/></td>
+             <td class="formField">
+diff --git a/src/com/serotonin/mango/rt/publish/httpSender/HttpSenderRT.java b/src/com/serotonin/mango/rt/publish/httpSender/HttpSenderRT.java
+index d07f1a71a..1e41d1f52 100644
+--- a/src/com/serotonin/mango/rt/publish/httpSender/HttpSenderRT.java
++++ b/src/com/serotonin/mango/rt/publish/httpSender/HttpSenderRT.java
+@@ -18,14 +18,22 @@
+  */
+ package com.serotonin.mango.rt.publish.httpSender;
+ 
++
+ import java.util.*;
++import java.io.UnsupportedEncodingException;
+ 
+ import org.apache.commons.httpclient.HttpMethodBase;
+ import org.apache.commons.httpclient.HttpStatus;
+ import org.apache.commons.httpclient.NameValuePair;
+ import org.apache.commons.httpclient.methods.GetMethod;
+ import org.apache.commons.httpclient.methods.PostMethod;
++import org.apache.commons.httpclient.methods.RequestEntity;
++import org.apache.commons.httpclient.methods.StringRequestEntity;
++import org.scada_lts.mango.adapter.MangoDataPoint;
++import org.scada_lts.mango.adapter.MangoPointValues;
+ 
++import com.fasterxml.jackson.core.JsonProcessingException;
++import com.fasterxml.jackson.databind.ObjectMapper;
+ import com.serotonin.ShouldNeverHappenException;
+ import com.serotonin.db.KeyValuePair;
+ import com.serotonin.mango.Common;
+@@ -121,12 +129,20 @@ protected void runImpl() {
+         @SuppressWarnings("synthetic-access")
+         private boolean send(List<PublishQueueEntry<HttpPointVO>> list) {
+             // Prepare the message
+-            NameValuePair[] params = createNVPs(vo.getStaticParameters(), list);
++            NameValuePair[] params = createNVPs(vo.getStaticParameters(), list, vo.isUseJSON());
+ 
+             HttpMethodBase method;
+             if (vo.isUsePost()) {
+                 PostMethod post = new PostMethod(vo.getUrl());
+                 post.addParameters(params);
++                if (vo.isUseJSON()) {
++                    try {
++                	post.setRequestEntity(getJSONRequestEntity(list));
++                    } catch (Exception e) {
++                	Common.ctx.getEventManager().raiseEvent(sendExceptionEventType, System.currentTimeMillis(), true,
++                                AlarmLevels.URGENT, new LocalizableMessage("common.default", e.getMessage()), createEventContext());
++                    }
++                }
+                 method = post;
+             }
+             else {
+@@ -134,6 +150,15 @@ private boolean send(List<PublishQueueEntry<HttpPointVO>> list) {
+                 get.setQueryString(params);
+                 method = get;
+             }
++            
++            // Add authentication
++            if (!(StringUtils.isEmpty(vo.getUsername()) || StringUtils.isEmpty(vo.getPassword()))) {
++        	byte[] authBytes = (vo.getUsername() + ':' + vo.getPassword()).getBytes();
++        	String authHeaderValue = "Basic " + Base64.getEncoder().encodeToString(authBytes);
++        	
++        	method.setDoAuthentication(true);
++        	method.addRequestHeader("Authorization", authHeaderValue);
++            }
+ 
+             // Add a recognizable header
+             method.addRequestHeader("User-Agent", USER_AGENT);
+@@ -189,11 +214,15 @@ private boolean send(List<PublishQueueEntry<HttpPointVO>> list) {
+         }
+     }
+ 
+-    NameValuePair[] createNVPs(List<KeyValuePair> staticParameters, List<PublishQueueEntry<HttpPointVO>> list) {
++    NameValuePair[] createNVPs(List<KeyValuePair> staticParameters, List<PublishQueueEntry<HttpPointVO>> list, boolean useJSON) {
+         List<NameValuePair> nvps = new ArrayList<NameValuePair>();
+ 
+         for (KeyValuePair kvp : staticParameters)
+             nvps.add(new NameValuePair(kvp.getKey(), kvp.getValue()));
++        
++        // Early return if using JSON
++        if (useJSON)
++            return nvps.toArray(new NameValuePair[nvps.size()]);
+ 
+         for (PublishQueueEntry<HttpPointVO> e : list) {
+             HttpPointVO pvo = e.getVo();
+@@ -223,4 +252,50 @@ private boolean send(List<PublishQueueEntry<HttpPointVO>> list) {
+ 
+         return nvps.toArray(new NameValuePair[nvps.size()]);
+     }
++    
++    private Object getJSONPointValue(PointValueTime pvt) {
++	switch (pvt.getValue().getDataType()) {
++	case DataTypes.ALPHANUMERIC:
++	    return pvt.getValue().getStringValue();
++	case DataTypes.BINARY:
++	    return pvt.getValue().getBooleanValue();
++	case DataTypes.NUMERIC:
++	    return pvt.getValue().getDoubleValue();
++	default:
++            throw new ShouldNeverHappenException("Unknown point value time type: " + pvt.getValue().getDataType());
++	}
++    }
++    
++    private RequestEntity getJSONRequestEntity(List<PublishQueueEntry<HttpPointVO>> list) throws JsonProcessingException, UnsupportedEncodingException {
++	Map<String,Object> jsonObject = new HashMap<>();
++    	for (PublishQueueEntry<HttpPointVO> point : list) {
++    	    HttpPointVO pvo = point.getVo();
++    	    PointValueTime pvt = point.getPvt();
++    	    
++    	    if (pvo.isIncludeTimestamp()) {
++    		Map<String,Object> pointJsonObject = new HashMap<>();
++    		pointJsonObject.put("value", getJSONPointValue(pvt));
++    		switch (vo.getDateFormat()) {
++                case HttpSenderVO.DATE_FORMAT_BASIC:
++                    pointJsonObject.put("timestamp",HttpDataSourceServlet.BASIC_SDF_CACHE.getObject().format(new Date(pvt.getTime())));
++                    break;
++                case HttpSenderVO.DATE_FORMAT_TZ:
++                    pointJsonObject.put("timestamp",HttpDataSourceServlet.TZ_SDF_CACHE.getObject().format(new Date(pvt.getTime())));
++                    break;
++                case HttpSenderVO.DATE_FORMAT_UTC:
++                    pointJsonObject.put("timestamp",Long.toString(pvt.getTime()));
++                    break;
++                default:
++                    throw new ShouldNeverHappenException("Unknown date format type: " + vo.getDateFormat());
++                }
++    		jsonObject.put(pvo.getParameterName(), pointJsonObject);
++    	    } else {
++    		jsonObject.put(pvo.getParameterName(), getJSONPointValue(pvt));
++    	    }
++    	}
++    	ObjectMapper jsonMapper = new ObjectMapper();
++    	String jsonReq = jsonMapper.writeValueAsString(jsonObject);
++    	System.out.println(jsonReq);
++	return new StringRequestEntity(jsonReq, "application/json", "utf-8");
++    }
+ }
+diff --git a/src/com/serotonin/mango/vo/publish/httpSender/HttpSenderVO.java b/src/com/serotonin/mango/vo/publish/httpSender/HttpSenderVO.java
+index 532512b0f..8061d6975 100644
+--- a/src/com/serotonin/mango/vo/publish/httpSender/HttpSenderVO.java
++++ b/src/com/serotonin/mango/vo/publish/httpSender/HttpSenderVO.java
+@@ -104,6 +104,12 @@ protected HttpPointVO createPublishedPointInstance() {
+     @JsonRemoteProperty
+     private String url;
+     @JsonRemoteProperty
++    private String username;
++    @JsonRemoteProperty
++    private String password;
++    @JsonRemoteProperty
++    private boolean useJSON;
++    @JsonRemoteProperty
+     private boolean usePost;
+     @JsonRemoteProperty(innerType = KeyValuePair.class)
+     private List<KeyValuePair> staticHeaders = new ArrayList<KeyValuePair>();
+@@ -120,6 +126,30 @@ public String getUrl() {
+     public void setUrl(String url) {
+         this.url = url;
+     }
++    
++    public String getUsername() {
++        return username;
++    }
++
++    public void setUsername(String username) {
++        this.username = username;
++    }
++    
++    public String getPassword() {
++        return password;
++    }
++
++    public void setPassword(String password) {
++        this.password = password;
++    }
++    
++    public boolean isUseJSON() {
++        return useJSON;
++    }
++
++    public void setUseJSON(boolean useJSON) {
++        this.useJSON = useJSON;
++    }
+ 
+     public boolean isUsePost() {
+         return usePost;
+@@ -167,6 +197,12 @@ public void validate(DwrResponseI18n response) {
+ 
+         if (StringUtils.isEmpty(url))
+             response.addContextualMessage("url", "validate.required");
++        
++        if (!StringUtils.isEmpty(username) && StringUtils.isEmpty(password))
++            response.addContextualMessage("password", "validate.required");
++        
++        if (useJSON && !usePost)
++            response.addContextualMessage("usePost", "publisherEdit.httpSender.mustUsePOSTWithJSON");
+ 
+         for (HttpPointVO point : points) {
+             if (StringUtils.isEmpty(point.getParameterName())) {
+@@ -185,11 +221,14 @@ public void validate(DwrResponseI18n response) {
+     // /
+     //
+     private static final long serialVersionUID = -1;
+-    private static final int version = 3;
++    private static final int version = 4;
+ 
+     private void writeObject(ObjectOutputStream out) throws IOException {
+         out.writeInt(version);
+         SerializationHelper.writeSafeUTF(out, url);
++        SerializationHelper.writeSafeUTF(out, username);
++        SerializationHelper.writeSafeUTF(out, password);
++        out.writeBoolean(useJSON);
+         out.writeBoolean(usePost);
+         out.writeObject(staticHeaders);
+         out.writeObject(staticParameters);
+@@ -225,6 +264,16 @@ else if (ver == 3) {
+             staticParameters = (List<KeyValuePair>) in.readObject();
+             raiseResultWarning = in.readBoolean();
+             dateFormat = in.readInt();
++        } else if (ver == 4) {
++            url = SerializationHelper.readSafeUTF(in);
++            username = SerializationHelper.readSafeUTF(in);
++            password = SerializationHelper.readSafeUTF(in);
++            useJSON = in.readBoolean();
++            usePost = in.readBoolean();
++            staticHeaders = (List<KeyValuePair>) in.readObject();
++            staticParameters = (List<KeyValuePair>) in.readObject();
++            raiseResultWarning = in.readBoolean();
++            dateFormat = in.readInt();
+         }
+     }
+ 
+diff --git a/src/com/serotonin/mango/web/dwr/PublisherEditDwr.java b/src/com/serotonin/mango/web/dwr/PublisherEditDwr.java
+index e6939b381..f8e1034f5 100644
+--- a/src/com/serotonin/mango/web/dwr/PublisherEditDwr.java
++++ b/src/com/serotonin/mango/web/dwr/PublisherEditDwr.java
+@@ -82,7 +82,7 @@ public DwrResponseI18n initSender() {
+     // HTTP sender stuff
+     //
+     public DwrResponseI18n saveHttpSender(String name, String xid, boolean enabled, List<HttpPointVO> points,
+-            String url, boolean usePost, List<KeyValuePair> staticHeaders, List<KeyValuePair> staticParameters,
++            String url, String username, String password, boolean useJSON, boolean usePost, List<KeyValuePair> staticHeaders, List<KeyValuePair> staticParameters,
+             int cacheWarningSize, boolean changesOnly, boolean raiseResultWarning, int dateFormat,
+             boolean sendSnapshot, int snapshotSendPeriods, int snapshotSendPeriodType) {
+         HttpSenderVO p = (HttpSenderVO) Common.getUser().getEditPublisher();
+@@ -92,6 +92,9 @@ public DwrResponseI18n saveHttpSender(String name, String xid, boolean enabled,
+         p.setEnabled(enabled);
+         p.setPoints(points);
+         p.setUrl(url);
++        p.setUsername(username);
++        p.setPassword(password);
++        p.setUseJSON(useJSON);
+         p.setUsePost(usePost);
+         p.setStaticHeaders(staticHeaders);
+         p.setStaticParameters(staticParameters);
+@@ -106,9 +109,9 @@ public DwrResponseI18n saveHttpSender(String name, String xid, boolean enabled,
+         return trySave(p);
+     }
+ 
+-    public void httpSenderTest(String url, boolean usePost, List<KeyValuePair> staticHeaders,
+-            List<KeyValuePair> staticParameters) {
+-        Common.getUser().setTestingUtility(new HttpSenderTester(url, usePost, staticHeaders, staticParameters));
++    public void httpSenderTest(String url, String username, String password, boolean useJSON, boolean usePost, 
++	    List<KeyValuePair> staticHeaders, List<KeyValuePair> staticParameters) {
++        Common.getUser().setTestingUtility(new HttpSenderTester(url, username, password, useJSON, usePost, staticHeaders, staticParameters));
+     }
+ 
+     public String httpSenderTestUpdate() {
+diff --git a/src/com/serotonin/mango/web/dwr/beans/HttpSenderTester.java b/src/com/serotonin/mango/web/dwr/beans/HttpSenderTester.java
+index de7971182..c4de39c83 100644
+--- a/src/com/serotonin/mango/web/dwr/beans/HttpSenderTester.java
++++ b/src/com/serotonin/mango/web/dwr/beans/HttpSenderTester.java
+@@ -18,33 +18,44 @@
+  */
+ package com.serotonin.mango.web.dwr.beans;
+ 
++import java.util.Base64;
+ import java.util.List;
+ 
++import org.apache.commons.httpclient.HttpClient;
+ import org.apache.commons.httpclient.HttpMethodBase;
+ import org.apache.commons.httpclient.HttpStatus;
+ import org.apache.commons.httpclient.NameValuePair;
+ import org.apache.commons.httpclient.methods.GetMethod;
+ import org.apache.commons.httpclient.methods.PostMethod;
++import org.apache.commons.httpclient.methods.StringRequestEntity;
+ 
+ import com.serotonin.db.KeyValuePair;
+ import com.serotonin.mango.Common;
+ import com.serotonin.mango.rt.publish.httpSender.HttpSenderRT;
++import com.serotonin.util.StringUtils;
+ import com.serotonin.web.http.HttpUtils;
+ 
+ /**
+  * @author Matthew Lohbihler
+  */
+ public class HttpSenderTester extends Thread implements TestingUtility {
++    
+     private final String url;
++    private final String username;
++    private final String password;
++    private final boolean useJSON;
+     private final boolean usePost;
+     private final List<KeyValuePair> staticHeaders;
+     private final List<KeyValuePair> staticParameters;
+ 
+     private String result;
+ 
+-    public HttpSenderTester(String url, boolean usePost, List<KeyValuePair> staticHeaders,
++    public HttpSenderTester(String url, String username, String password, boolean useJSON, boolean usePost, List<KeyValuePair> staticHeaders,
+             List<KeyValuePair> staticParameters) {
+         this.url = url;
++        this.username = username;
++        this.password = password;
++        this.useJSON = useJSON;
+         this.usePost = usePost;
+         this.staticHeaders = staticHeaders;
+         this.staticParameters = staticParameters;
+@@ -57,6 +68,14 @@ public void run() {
+         if (usePost) {
+             PostMethod post = new PostMethod(url);
+             post.addParameters(convertToNVPs(staticParameters));
++            if (useJSON) {
++        	try {
++        	    post.setRequestEntity(new StringRequestEntity("{}", "application/json", "utf-8"));
++        	} catch (Exception e) {
++        	    result = "ERROR: " + e.getMessage();
++        	    return;
++        	}
++            }
+             method = post;
+         }
+         else {
+@@ -64,6 +83,15 @@ public void run() {
+             get.setQueryString(convertToNVPs(staticParameters));
+             method = get;
+         }
++        
++        // Add authentication
++        if (!(StringUtils.isEmpty(username) || StringUtils.isEmpty(password))) {
++        	byte[] authBytes = (username + ':' + password).getBytes();
++        	String authHeaderValue = "Basic " + Base64.getEncoder().encodeToString(authBytes);
++        	
++        	method.setDoAuthentication(true);
++        	method.addRequestHeader("Authorization", authHeaderValue);
++        }
+ 
+         // Add a recognizable header
+         method.addRequestHeader("User-Agent", HttpSenderRT.USER_AGENT);
+diff --git a/webapp-resources/messages_en.properties b/webapp-resources/messages_en.properties
+index a152ba60e..f6cb7cff1 100644
+--- a/webapp-resources/messages_en.properties
++++ b/webapp-resources/messages_en.properties
+@@ -2589,6 +2589,7 @@ publisherEdit.httpSender=HTTP Sender
+ publisherEdit.httpSender.addStaticHeader=Add static header
+ publisherEdit.httpSender.addStaticParam=Add static parameter
+ publisherEdit.httpSender.cancel=Cancel
++publisherEdit.httpSender.credentials=Credentials
+ publisherEdit.httpSender.dateFormat=Date format
+ publisherEdit.httpSender.dateFormat.basic=Basic
+ publisherEdit.httpSender.dateFormat.tz=Time zone
+@@ -2598,12 +2599,14 @@ publisherEdit.httpSender.headerValue=Value
+ publisherEdit.httpSender.keyExists=Key aready exists
+ publisherEdit.httpSender.keyRequired=Key is required
+ publisherEdit.httpSender.method=Method
++publisherEdit.httpSender.mustUsePOSTWithJSON=JSON request supports only POST method
+ publisherEdit.httpSender.noPoints=No points defined
+ publisherEdit.httpSender.noResponseData=(no response data)
+ publisherEdit.httpSender.noStaticHeaders=No static headers defined
+ publisherEdit.httpSender.noStaticParams=No static parameters defined
+ publisherEdit.httpSender.paramKey=Key
+ publisherEdit.httpSender.paramValue=Value
++publisherEdit.httpSender.password=Password
+ publisherEdit.httpSender.point.name=Name
+ publisherEdit.httpSender.point.param=Parameter name
+ publisherEdit.httpSender.point.status=Status
+@@ -2619,6 +2622,8 @@ publisherEdit.httpSender.sending=Sending...
+ publisherEdit.httpSender.staticHeaders=Static headers
+ publisherEdit.httpSender.staticParams=Static parameters
+ publisherEdit.httpSender.url=URL
++publisherEdit.httpSender.useJSON=Use JSON
++publisherEdit.httpSender.username=Username
+ publisherEdit.name=Name
+ publisherEdit.noPoints=No points to list
+ publisherEdit.pachube=Pachube

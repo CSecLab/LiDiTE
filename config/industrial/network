@@ -1,0 +1,23 @@
+test -f /.configured-net && exit 0
+
+uci -q batch <<-EOF >/dev/null
+  # lan interface (connection with industrial network)
+  set network.lan.proto=static
+  set network.lan.ipaddr=10.10.10.1
+  set network.lan.netmask=255.255.255.0
+
+  # wan interface (connection with enterprise firewall)
+  set network.wan.proto=static
+  set network.wan.ipaddr=10.255.255.18
+  set network.wan.netmask=255.255.255.248
+  #set network.wan.gateway=10.255.255.17
+
+  commit network
+
+  set uhttpd.main.rfc1918_filter=0
+  commit uhttpd
+EOF
+
+touch /.configured-net 
+
+exit 0

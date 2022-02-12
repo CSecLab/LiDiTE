@@ -1,0 +1,33 @@
+{
+  "name": "FDT:solar-panel-1",
+  "features": {
+    "solar-panel": {
+      "type": "derived",
+      "updateFrequency": 10.0,
+      "components": [
+        {
+          "sources": [
+            {
+              "thingId": "FDT:sun-simulator",
+              "feature": "environment",
+              "pointer": "/watt-per-msq"
+            }
+          ],
+          "callbackName": "calculatePower",
+          "name": "power"
+        },
+        {
+          "sources": [
+            {
+              "thingId": "FDT:solar-panel-1",
+              "feature": "solar-panel",
+              "pointer": "/power"
+            }
+          ],
+          "callbackName": "calculateSurfaceTemperature",
+          "name": "surface-temperature"
+        }
+      ]
+    }
+  }
+}

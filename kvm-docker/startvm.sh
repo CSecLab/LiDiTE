@@ -1,0 +1,445 @@
+#!/bin/bash
+
+# This entrypoint for KVM container configures and attaches network bridges to
+# the VM and starts KVM with the selected options.
+
+# See Dockerfile reference and README.md for further info.
+
+# If no arguments, the VM will lauch with 4 cores and 1GB of memory
+
+: ${DEBUG:='N'}
+: ${USE_NET_BRIDGES:='N'}
+#: ${LAUNCHER:='/usr/libexec/qemu-kvm'}
+: ${LAUNCHER:='kvm'}
+: ${DNSMASQ_CONF_DIR:='/etc/dnsmasq.d'}
+: ${DNSMASQ:='/usr/sbin/dnsmasq'}
+: ${QEMU_CONF_DIR:='/etc/qemu-kvm'}
+: ${ENABLE_DHCP:='Y'}
+: ${DISABLE_VGA:='N'}
+: ${USE_CLONE:='Y'}
+
+: ${IMAGE:="/image/image"}
+: ${CLONE:="/clone"}
+: ${KVM_BLK_OPTS:="-drive if=virtio,file="}
+# -serial stdio \
+
+: ${KVM_OPTS:="\
+  -nodefaults \
+  -device virtio-balloon-pci,id=balloon0 \
+  -realtime mlock=off \
+  -msg timestamp=on \
+  -monitor unix:/qemu-monitor,server,nowait \
+  "}
+  # -device isa-serial,chardev=charserial0,id=serial0 \
+  # -chardev pty,id=charserial0 \
+  # -serial telnet::4555,server,nowait \
+
+: ${KVM_CPU_OPTS:="-m 1024 -smp 4,sockets=4,cores=1,threads=1"}
+
+log () {
+  case "$1" in
+    INFO | WARNING | ERROR )
+      echo "$1: ${@:2}"
+      ;;
+    DEBUG)
+      [[ $DEBUG -eq 1 ]] && echo "$1: ${@:2}"
+      ;;
+    *)
+      echo "-- $@"
+      ;;
+  esac
+}
+
+#cleanup() {
+#    echo "*** Trapped ***" 
+#    log "INFO" "Force shutdown..."
+#    #echo "info status" | socat -t 5 - unix-connect:/qemu-monitor
+#    echo "system_powerdown" | socat -t 5 - unix-connect:/qemu-monitor
+#    #echo "savevm $TAG" | socat -t 600 - unix-connect:/qemu-monitor
+#    #echo "info snapshots" | socat -t 5 - unix-connect:/qemu-monitor
+#    #echo "quit" | socat -t 5 - unix-connect:/qemu-monitor
+#    exit
+#}
+
+
+# ContainsElement: checks if first parameter is among the array given as second parameter
+# returns 0 if the element is found in the list and 1 if not
+# usage: containsElement $item $list
+
+containsElement () {
+  local e
+  for e in "${@:2}"; do [[ "$e" == "$1" ]] && return 0; done
+  return 1
+}
+
+# Generate random MAC address
+genMAC () {
+  hexchars="0123456789ABCDEF"
+  end=$( for i in {1..8} ; do echo -n ${hexchars:$(( $RANDOM % 16 )):1} ; done | sed -e 's/\(..\)/:\1/g' )
+  echo "FE:05$end"
+}
+
+# atoi: Returns the integer representation of an IP arg, passed in ascii
+# dotted-decimal notation (x.x.x.x)
+atoi() {
+  IP=$1
+  IPnum=0
+  for (( i=0 ; i<4 ; ++i ))
+  do
+    ((IPnum+=${IP%%.*}*$((256**$((3-${i}))))))
+    IP=${IP#*.}
+  done
+  echo $IPnum
+}
+
+# itoa: returns the dotted-decimal ascii form of an IP arg passed in integer
+# format
+itoa() {
+  echo -n $(($(($(($((${1}/256))/256))/256))%256)).
+  echo -n $(($(($((${1}/256))/256))%256)).
+  echo -n $(($((${1}/256))%256)).
+  echo $((${1}%256))
+}
+
+cidr2mask() {
+  local i mask=""
+  local full_octets=$(($1/8))
+  local partial_octet=$(($1%8))
+
+  for ((i=0;i<4;i+=1)); do
+    if [ $i -lt $full_octets ]; then
+      mask+=255
+    elif [ $i -eq $full_octets ]; then
+      mask+=$((256 - 2**(8-$partial_octet)))
+    else
+      mask+=0
+    fi
+    test $i -lt 3 && mask+=.
+  done
+
+  echo $mask
+}
+
+# Generates and returns a new IP and MASK in a superset (inmediate wider range)
+# of the given IP/MASK
+# usage: getNonConflictingIP IP MASK
+# returns NEWIP MASK
+getNonConflictingIP () {
+    local IP="$1"
+    local CIDR="$2"
+    local IFACE="$3"
+    local CONT_IPS="$4"
+
+    # CONT_IPS
+    if ! [[ -z $CONT_IPS ]]; then
+       IFS=','; for i in $CONT_IPS
+       do
+        int=$(echo $i | cut -d: -f 1)
+        if [[ "$int" == "$IFACE" ]]; then
+         newIP=$(echo $i | cut -d: -f 2)
+         newCIDR=$CIDR
+        fi
+       done
+    fi
+
+    if [[ -z $newIP ]]; then
+       let "newCIDR=$CIDR-1"
+
+       local i=$(atoi $IP)
+       let "j=$i^(1<<(32-$CIDR))"
+       local newIP=$(itoa j)
+    fi
+
+    #if [[ "$1" == "10.1.1.150" ]]; then
+    #    echo "10.1.1.200 24"
+    #else
+    #    echo "192.168.250.101 24"
+    #fi
+
+    echo $newIP $newCIDR
+}
+
+# generates unused, random names for macvlan or bridge devices
+# usage: generateNetDevNames DEVICETYPE
+#   DEVICETYPE must be either 'macvlan' or 'bridge'
+# returns:
+#   - bridgeXXXXXX if DEVICETYPE is 'bridge'
+#   - macvlanXXXXXX, macvtapXXXXXX if DEVICETYPE is 'macvlan'
+generateNetdevNames () {
+  devicetype=$1
+
+  local netdevinterfaces=($(ip link show | awk "/$devicetype/ { print \$2 }" | cut -d '@' -f 1 | tr -d :))
+  local randomID=$(cat /dev/urandom | tr -dc 'a-f0-9' | fold -w 6 | head -n 1)
+
+  # check if the device already exists and regenerate the name if so
+  while containsElement "$devicetype$randomID" "${netdevinterfaces[@]}"; do randomID=$(cat /dev/urandom | tr -dc 'a-f0-9' | fold -w 6 | head -n 1); done
+
+  echo "$randomID"
+}
+
+setupBridge () {
+  set -x
+  local iface="$1"
+  local mode="$2"
+  local deviceID=$(generateNetdevNames $mode)
+  local bridgeName="$mode$deviceID"
+
+  if [[ $mode == "bridge" ]]; then
+    brctl addbr "$bridgeName"
+    brctl addif "$bridgeName" "$iface"
+  else # use macvlan devices by default
+    vtapdev="macvtap${deviceID}"
+    until $(ip link add link $iface name $vtapdev type macvtap mode bridge); do
+      sleep 1
+    done
+
+    ip link set $vtapdev address "$MAC"
+    ip link set $vtapdev up
+
+    # create a macvlan device for the host
+    ip link add link $iface name $bridgeName type macvlan mode bridge
+    ip link set $bridgeName up
+
+    # create dev file (there is no udev in container: need to be done manually)
+    IFS=: read major minor < <(cat /sys/devices/virtual/net/$vtapdev/tap*/dev)
+    mknod "/dev/$vtapdev" c $major $minor
+  fi
+
+  set +x
+  # get a new IP for the guest machine ## in a broader network broadcast domain
+  if ! [[ -z $IP ]]; then
+    newIP=($(getNonConflictingIP $IP $CIDR $iface $CONT_IPS))
+    ip address del "$IP/$CIDR" dev "$iface"
+    ip address add "${newIP[0]}/${newIP[1]}" dev "$bridgeName"
+  fi
+
+
+  ip link set dev "$bridgeName" up
+
+  echo $deviceID
+}
+
+setupDhcp () {
+  # dnsmasq configuration:
+  if [[ "$ENABLE_DHCP" == 1 ]]; then
+    log "INFO" "DHCP configured to serve IP $IP/$CIDR via ${bridgeName[0]} (attached to container's $iface)"
+    DNSMASQ_OPTS="$DNSMASQ_OPTS --dhcp-range=$IP,$IP --dhcp-host=$MAC,,$IP,$(hostname -s),infinite --dhcp-option=option:netmask,$(cidr2mask $CIDR)"
+  else
+    log "INFO" "No DHCP enabled. The VM won't get the container IP(s)"
+  fi
+}
+
+# Setup macvtap device to connect later the VM and setup a new macvlan devide
+# to connect the host machine to the network
+configureNetworks () {
+  local i=0
+  local pci=4
+
+  local GATEWAY=$(ip r | grep default | awk '{print $3}')
+  local IP
+
+  for iface in "${local_ifaces[@]}"; do
+
+    IPs=$(ip address show dev $iface | grep inet | awk '/inet / { print $2 }' | cut -f1 -d/)
+    IPs=($IPs)
+    MAC=$(ip link show $iface | awk '/ether/ { print $2 }')
+    log "DEBUG" "Container original MAC address: $MAC"
+
+    # If the container has more than one IP configured in a given interface,
+    # the user can select which one to use.
+    # The SELECTED_NETWORK environment variable is used to select that IP.
+    # This env variable must be in the form IP/MASK (e.g. 1.2.3.4/24).
+    #
+    # If this env variable is not set, the IP to be given to the VM is
+    # the first in the list for that interface (default behaviour).
+
+    if ! [[ -z "$SELECTED_NETWORK" ]]; then
+      local given_ip given_mask
+      IFS=/ read given_ip given_mask <<< $SELECTED_NETWORK
+      local given_addr=$(atoi $given_ip)
+      local given_mask=$((0xffffffff << (32 - $given_mask) & 0xffffffff))
+      local given_broadcast=$((given_addr | ~given_mask & 0xffffffff))
+      local given_network=$((given_addr & given_mask))
+
+      for configured_ip in "${IPs[@]}"; do
+        local configured_ip=$(atoi $configured_ip)
+        if [[ $configured_ip -gt $given_network && $configured_ip -lt $given_broadcast ]]; then
+          IP=$(itoa $configured_ip)
+          log "INFO" "SELECTED_NETWORK ($SELECTED_NETWORK) found with ip $IP in $iface interface."
+        fi
+      done
+      [[ -z "$IP" ]] && log "WARNING" "SELECTED_NETWORK ($SELECTED_NETWORK) not found in $iface interface."
+    else
+      IP=${IPs[0]}
+    fi
+
+    local CIDR=$(ip address show dev $iface | awk "/inet $IP/ { print \$2 }" | cut -f2 -d/)
+
+    # use container MAC address ($MAC) for tap device
+    # and generate a new one for the local interface
+    ip link set $iface down
+    ip link set $iface address $(genMAC)
+    ip link set $iface up
+
+    # setup the bridge or macvtap (default) devices for bridging the VM and the
+    # container
+    if [[ $USE_NET_BRIDGES == 1 ]]; then
+      deviceID=$(setupBridge $iface "bridge")
+      bridgeName="bridge$deviceID"
+      # kvm configuration:
+      echo allow $bridgeName >> $QEMU_CONF_DIR/bridge.conf
+      KVM_NET_OPTS="$KVM_NET_OPTS -netdev bridge,br=$bridgeName,id=net$i"
+    else
+      deviceID=($(setupBridge $iface "macvlan"))
+      bridgeName="macvlan$deviceID"
+      # kvm configuration:
+      let fd=$i+3
+      KVM_NET_OPTS="$KVM_NET_OPTS -netdev tap,id=net$i,vhost=on,fd=$fd ${fd}<>/dev/macvtap$deviceID"
+    fi
+
+    setupDhcp
+    log "DEBUG" "bridgeName: $bridgeName"
+    KVM_NET_OPTS=" -device virtio-net-pci,netdev=net$i,mac=$MAC,bus=pci.0,addr=0x$pci $KVM_NET_OPTS"
+    let i++
+    let pci++
+
+  done
+}
+
+# MAIN
+
+#enable KVM support onl if the host supports it
+if [[ $(grep -e vmx -e svm /proc/cpuinfo) ]]; then
+  log "INFO" "KVM acceleration enabled"
+  KVM_OPTS="$KVM_OPTS -enable-kvm -machine accel=kvm,usb=off "
+else
+  log "INFO" "KVM acceleration disabled"
+  KVM_OPTS="$KVM_OPTS -machine usb=off "
+fi
+
+# Debugging mode
+if [ "$1" = "bash" ]; then
+  export DEBUG=1
+  export LAUNCHER=$LAUNCHER
+  export QEMU_CONF_DIR=$QEMU_CONF_DIR
+  export DNSMASQ_CONF_DIR=$DNSMASQ_CONF_DIR
+  export DNSMASQ=$DNSMASQ
+  export ENABLE_DHCP=$ENABLE_DHCP
+  export DNS_SERVERS=$DNS_SERVERS
+  export KVM_BLK_OPTS=$KVM_BLK_OPTS
+  export KVM_OPTS="$KVM_OPTS -nographic"
+  alias launcher="$LAUNCHER $KVM_BLK_OPTS $KVM_OPTS $KVM_CPU_OPTS $KVM_NET_OPTS"
+  exec bash
+fi
+
+case "$DEBUG" in
+  [Yy1]* ) DEBUG=1;;
+  [Nn0]* ) DEBUG=0;;
+  *      ) log "ERROR" "DEBUG incorrect or undefined. It must be one of [Yy1Nn0]"; exit 1;;
+esac
+
+case "$AUTO_ATTACH" in
+  [Yy1]* ) AUTO_ATTACH=1;;
+  [Nn0]* ) AUTO_ATTACH=0;;
+  *      ) log "ERROR" "AUTO_ATTACH incorrect or undefined. It must be one of [Yy1Nn0]"; exit 1;;
+esac
+
+case "$ENABLE_DHCP" in
+  [Yy1]* ) ENABLE_DHCP=1;;
+  [Nn0]* ) ENABLE_DHCP=0;;
+  *      ) log "ERROR" "ENABLE_DHCP incorrect or undefined. It must be one of [Yy1Nn0]"; exit 1;;
+esac
+
+case "$DISABLE_VGA" in
+  [Yy1]* ) DISABLE_VGA=1;;
+  [Nn0]* ) DISABLE_VGA=0;;
+  *      ) log "ERROR" "DISABLE_VGA incorrect or undefined. It must be one of [Yy1Nn0]"; exit 1;;
+esac
+
+case "$USE_NET_BRIDGES" in
+  [Yy1]* ) USE_NET_BRIDGES=1;;
+  [Nn0]* ) USE_NET_BRIDGES=0;;
+  *      ) log "ERROR" "USE_NET_BRIDGES incorrect or undefined. It must be one of [Yy1Nn0]"; exit 1;;
+esac
+
+case "$USE_CLONE" in
+  [Yy1]* ) USE_CLONE=1;;
+  [Nn0]* ) USE_CLONE=0;;
+  *      ) log "ERROR" "USE_CLONE incorrect or undefined. It must be one of [Yy1Nn0]"; exit 1;;
+esac
+
+if [[ "$USE_CLONE" -eq 1 ]]; then
+  KVM_BLK_OPTS="${KVM_BLK_OPTS}${CLONE}"
+  # check if linked clone exists
+  if [ ! -f $CLONE ]; then
+    log "INFO" "Creating linked clone ($CLONE)..."
+    qemu-img create -f qcow2 -b $IMAGE $CLONE
+  fi
+else
+  KVM_BLK_OPTS="${KVM_BLK_OPTS}${IMAGE}"
+fi
+
+if [[ "$DISABLE_VGA" -eq 0 ]]; then
+  : ${KVM_VIDEO_OPTS:="-vga virtio -display none"}
+else
+  : ${KVM_VIDEO_OPTS:="-nographic"}
+fi
+
+if [[ $AUTO_ATTACH -eq 1 ]]; then
+  # Get all interfaces:
+  local_ifaces=($(ip link show | grep -v noop | grep state | grep -v LOOPBACK | awk '{print $2}' | tr -d : | sed 's/@.*$//'))
+  local_bridges=($(brctl show | tail -n +2 | awk '{print $1}'))
+  # Get non-bridge interfaces:
+  for i in "${local_bridges[@]}"
+  do
+    local_ifaces=(${local_ifaces[@]//*$i*})
+  done
+else
+  local_ifaces=($ATTACH_IFACES)
+fi
+
+DEFAULT_ROUTE=$(ip route | grep default | awk '{print $3}')
+
+configureNetworks
+
+if [[ "$ENABLE_DHCP" == 1 ]]; then
+  # Hack for guest VMs complaining about "bad udp checksums in 5 packets"
+  iptables -A POSTROUTING -t mangle -p udp --dport bootpc -j CHECKSUM --checksum-fill
+
+  # Build DNS options from container /etc/resolv.conf
+  nameservers=($(grep nameserver /etc/resolv.conf | sed 's/nameserver //'))
+  searchdomains=$(grep search /etc/resolv.conf | sed 's/search //' | sed 's/ /,/g')
+  domainname=$(echo $searchdomains | awk -F"," '{print $1}')
+
+  for nameserver in "${nameservers[@]}"; do
+    [[ -z $DNS_SERVERS ]] && DNS_SERVERS=$nameserver || DNS_SERVERS="$DNS_SERVERS,$nameserver"
+  done
+  DNSMASQ_OPTS="$DNSMASQ_OPTS                         \
+    --dhcp-option=option:dns-server,$DNS_SERVERS      \
+    --dhcp-option=option:router,$DEFAULT_ROUTE        \
+    --dhcp-option=option:domain-search,$searchdomains \
+    --dhcp-option=option:domain-name,$domainname      \
+    --dhcp-authoritative			      \
+    "
+  [[ -z $(hostname -d) ]] || DNSMASQ_OPTS="$DNSMASQ_OPTS --dhcp-option=option:domain-name,$(hostname -d)"
+  log "INFO" "Lauching dnsmasq"
+  log "DEBUG" "dnsmasq options: $DNSMASQ_OPTS"
+  $DNSMASQ $DNSMASQ_OPTS
+fi
+
+log "INFO" "Launching qemu-kvm"
+log "DEBUG" "Launching $LAUNCHER $KVM_BLK_OPTS $KVM_OPTS $KVM_VIDEO_OPTS $KVM_CPU_OPTS $KVM_ARGS $@ $KVM_NET_OPTS"
+
+if [[ -d /scripts/ ]]; then
+ eval exec $LAUNCHER $KVM_BLK_OPTS $KVM_OPTS $KVM_VIDEO_OPTS $KVM_CPU_OPTS "$@" $KVM_NET_OPTS &
+ ls -1 /scripts/*.sh |
+ while read s
+ do
+  echo "Execute $s"
+  exec $s
+ done
+
+ tail -f /dev/null
+else
+ eval exec $LAUNCHER $KVM_BLK_OPTS $KVM_OPTS $KVM_VIDEO_OPTS $KVM_CPU_OPTS "$@" $KVM_NET_OPTS
+fi

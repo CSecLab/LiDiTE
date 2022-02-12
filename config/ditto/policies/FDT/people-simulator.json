@@ -1,0 +1,40 @@
+{
+  "policyId" : "FDT:people-simulator",
+  "entries" : {
+    "owner" : {
+      "subjects" : {
+        "nginx:administrator" : {
+          "type" : "The system administrator"
+        },
+        "{{ request:subjectId }}" : {
+          "type" : "Who made the original submission"
+        }
+      },
+      "resources" : {
+        "policy:/" : { "grant" : [ "READ", "WRITE" ], "revoke" : [] },
+        "thing:/" : { "grant" : [ "READ", "WRITE" ], "revoke" : [] },
+        "message:/" : { "grant" : [ "READ", "WRITE" ], "revoke" : [] }
+      }
+    },
+    "people-simulator" : {
+      "subjects" : {
+        "nginx:people-simulator" : {
+          "type" : "The people simulator"
+        }
+      },
+      "resources" : {
+        "thing:/features" : { "grant" : [ "READ", "WRITE" ], "revoke" : [] }
+      }
+    },
+    "camunda-people-simulator" : {
+      "subjects" : {
+        "nginx:camunda-people-simulator" : {
+          "type" : "The Camunda BPMN workflow simulating cabinet scaling"
+        }
+      },
+      "resources" : {
+        "thing:/features/people/properties/count" : { "grant" : [ "READ" ], "revoke" : [] }
+      }
+    }
+  }
+}

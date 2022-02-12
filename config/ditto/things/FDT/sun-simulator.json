@@ -1,0 +1,14 @@
+{
+  "thingId" : "FDT:sun-simulator",
+  "policyId" : "FDT:sun-simulator",
+  "definition" : "it.unige.sv:SunSimulator:0.1.0",
+  "attributes" : {
+    "likes-focaccia" : "A lot",
+    "prefers-pesto-with" : {
+      "aglio" : true,
+      "fagiolini" : true,
+      "patate" : true
+    }
+  },
+  "features" : {}
+}

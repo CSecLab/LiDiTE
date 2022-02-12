@@ -1,0 +1,143 @@
+networks:
+  # Network interfaces are allocated following lexical order of network names 
+  # (cf. https://github.com/docker/cli/issues/1372)
+  a20_enterprise:
+    driver: dovesnap
+    internal: true
+    driver_opts:
+     ovs.bridge.mode: flat
+     ovs.bridge.dpid: "0x${net_Enterprise_id}" 
+     ovs.bridge.controller: "tcp:127.0.0.1:6653,tcp:127.0.0.1:6654"
+     ovs.bridge.preallocate_ports: ${OVS_DEFAULT_PREALLOCATED_PORTS}
+    ipam:
+     config:
+       - subnet: ${net_Enterprise_subnet}
+         gateway: ${net_Enterprise_gateway}
+
+  a25_ind_enterprise:
+    driver: dovesnap
+    internal: true
+    driver_opts:
+     ovs.bridge.mode: flat
+     ovs.bridge.dpid: "0x${net_Industrial_Enterprise_id}" 
+     ovs.bridge.controller: "tcp:127.0.0.1:6653,tcp:127.0.0.1:6654"
+     ovs.bridge.preallocate_ports: ${OVS_DEFAULT_PREALLOCATED_PORTS}
+    ipam:
+      config:
+        - subnet: ${net_Industrial_Enterprise_subnet}
+          gateway: ${net_Industrial_Enterprise_gateway}
+
+  a30_industrial:
+    driver: dovesnap
+    internal: true
+    driver_opts:
+     ovs.bridge.mode: flat
+     ovs.bridge.dpid: "0x${net_Industrial_id}" 
+     ovs.bridge.controller: "tcp:127.0.0.1:6653,tcp:127.0.0.1:6654"
+     ovs.bridge.preallocate_ports: ${OVS_DEFAULT_PREALLOCATED_PORTS}
+    ipam:
+      config:
+        - subnet: ${net_Industrial_subnet}
+          gateway: ${net_Industrial_gateway}
+
+  # see https://github.com/IQTLabs/dovesnap, requires non-netfilter iptables
+  z90_providernet:
+    driver: dovesnap
+    internal: true
+    driver_opts:
+     ovs.bridge.mode: nat
+     ovs.bridge.dpid: "0x${net_Providernet_id}" 
+     ovs.bridge.controller: "tcp:127.0.0.1:6653,tcp:127.0.0.1:6654"
+     ovs.bridge.preallocate_ports: ${OVS_DEFAULT_PREALLOCATED_PORTS}
+    ipam:
+      config:
+        - subnet: ${net_Providernet_subnet} 
+          gateway: ${net_Providernet_gateway}
+  # z90_providernet:
+  #   driver: bridge
+  #   ipam:
+  #     driver: default
+  #     config:
+  #       - subnet: ${net_Providernet_subnet}
+  #         gateway: ${net_Providernet_gateway}
+
+  z95_dmz:
+    driver: dovesnap
+    internal: true
+    driver_opts:
+     ovs.bridge.mode: flat
+     ovs.bridge.dpid: "0x${net_DMZ_id}" 
+     ovs.bridge.controller: "tcp:127.0.0.1:6653,tcp:127.0.0.1:6654"
+     ovs.bridge.preallocate_ports: ${OVS_DEFAULT_PREALLOCATED_PORTS}
+    ipam:
+      config:
+        - subnet: ${net_DMZ_subnet}
+          gateway: ${net_DMZ_gateway}
+
+  z96_perimeter2ent:
+    driver: dovesnap
+    internal: true
+    driver_opts:
+     ovs.bridge.mode: flat
+     ovs.bridge.dpid: "0x${net_Perimeter2ent_id}" 
+     ovs.bridge.controller: "tcp:127.0.0.1:6653,tcp:127.0.0.1:6654"
+     ovs.bridge.preallocate_ports: ${OVS_DEFAULT_PREALLOCATED_PORTS}
+    ipam:
+      config:
+        - subnet: ${net_Perimeter2ent_subnet}
+          gateway: ${net_Perimeter2ent_gateway}
+
+  z97_ent2ind:
+    driver: dovesnap
+    internal: true
+    driver_opts:
+     ovs.bridge.mode: flat
+     ovs.bridge.dpid: "0x${net_Ent2ind_id}" 
+     ovs.bridge.controller: "tcp:127.0.0.1:6653,tcp:127.0.0.1:6654"
+     ovs.bridge.preallocate_ports: ${OVS_DEFAULT_PREALLOCATED_PORTS}
+    ipam:
+      config:
+        - subnet: ${net_Ent2ind_subnet}
+          gateway: ${net_Ent2ind_gateway}
+
+  z98_simint:
+    driver: dovesnap
+    internal: true
+    driver_opts:
+     ovs.bridge.mode: flat
+     ovs.bridge.dpid: "0x${net_SIMINT_id}" 
+     ovs.bridge.controller: "tcp:127.0.0.1:6653,tcp:127.0.0.1:6654"
+     ovs.bridge.preallocate_ports: ${OVS_DEFAULT_PREALLOCATED_PORTS}
+    labels:
+      - "fdt.passthrough"
+    ipam:
+      config:
+        - subnet: ${net_SIMINT_subnet}
+          gateway: ${net_SIMINT_gateway}
+
+  z99_extnet:
+    driver: dovesnap
+    internal: true
+    driver_opts:
+     ovs.bridge.mode: nat
+     ovs.bridge.dpid: "0x${net_Extnet_id}" 
+     ovs.bridge.controller: "tcp:127.0.0.1:6653,tcp:127.0.0.1:6654"
+     ovs.bridge.preallocate_ports: ${OVS_DEFAULT_PREALLOCATED_PORTS}
+    ipam:
+      config:
+        - subnet: ${net_Extnet_subnet}
+
+  zzz999_management:
+    driver: dovesnap
+    internal: true
+    driver_opts:
+     ovs.bridge.mode: nat
+     ovs.bridge.dpid: "0x${net_mgmt_id}" 
+     ovs.bridge.controller: "tcp:127.0.0.1:6653,tcp:127.0.0.1:6654"
+     ovs.bridge.preallocate_ports: 25
+    labels:
+      - "fdt.passthrough"
+    ipam:
+      config:
+        - subnet: ${net_mgmt_subnet}
+          gateway: ${net_mgmt_gateway}

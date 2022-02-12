@@ -1,0 +1,29 @@
+version: '3'
+services: 
+    database:
+        container_name: mariadb
+        image: mariadb:10.5.9
+        ports:
+            - "3306:3306"
+        environment: 
+            - MYSQL_ROOT_PASSWORD=root
+        expose: ["3306"]
+        volumes:
+            - ./config/mysql:/docker-entrypoint-initdb.d:ro
+    scamunda:
+        image: scamunda:custom
+        build: .
+        environment:
+            DB_HOST: database
+            DB_PORT: 3306
+            CAMUNDA_DB_NAME: camunda
+            CAMUNDA_DB_USER: camunda
+            CAMUNDA_DB_PASS: camunda
+            SCADA_DB_NAME: scadalts
+            SCADA_DB_USER: scadalts
+            SCADA_DB_PASS: scadalts
+        ports: 
+            - "8080:8080"
+        depends_on: 
+            - database
+        expose: ["8080", "8000"]

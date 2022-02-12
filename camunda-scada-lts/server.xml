@@ -1,0 +1,73 @@
+<Server port="8005" shutdown="SHUTDOWN">
+  <!-- Camunda -->
+  <Listener className="org.camunda.bpm.container.impl.tomcat.TomcatBpmPlatformBootstrap" />
+
+  <!-- Tomcat -->
+  <Listener className="org.apache.catalina.startup.VersionLoggerListener" />
+  <Listener className="org.apache.catalina.core.AprLifecycleListener" SSLEngine="on" />
+  <Listener className="org.apache.catalina.core.JreMemoryLeakPreventionListener" />
+  <Listener className="org.apache.catalina.mbeans.GlobalResourcesLifecycleListener" />
+  <Listener className="org.apache.catalina.core.ThreadLocalLeakPreventionListener" />
+
+  <GlobalNamingResources>
+    <!-- Camunda -->
+    <Resource name="jdbc/ProcessEngine"
+      auth="Container"
+      type="javax.sql.DataSource" 
+      factory="org.apache.tomcat.jdbc.pool.DataSourceFactory"
+      uniqueResourceName="process-engine"
+      testWhileIdle="true"
+      testOnBorrow="true"
+      testOnReturn="false"
+      validationQuery="SELECT 1"
+      validationInterval="30000"
+      timeBetweenEvictionRunsMillis="30000"
+      maxActive="80"
+      minIdle="10"
+      maxWait="10000"
+      initialSize="10"
+      removeAbandonedTimeout="1000"
+      removeAbandoned="true"
+      abandonWhenPercentageFull="75"
+      logAbandoned="true"
+      minEvictableIdleTimeMillis="30000"
+      jmxEnabled="true"
+      jdbcInterceptors="org.apache.tomcat.jdbc.pool.interceptor.ConnectionState;
+                        org.apache.tomcat.jdbc.pool.interceptor.StatementFinalizer;
+                        org.apache.tomcat.jdbc.pool.interceptor.ResetAbandonedTimer;
+                        org.apache.tomcat.jdbc.pool.interceptor.SlowQueryReport(threshold=1500)"
+      driverClassName="com.mysql.jdbc.Driver"
+      defaultTransactionIsolation="READ_COMMITTED"
+	    <!--CAMUNDADBUSER-->
+	    <!--CAMUNDADBPASS-->
+	    <!--CAMUNDADBURL-->
+    />
+
+    <Resource name="global/camunda-bpm-platform/process-engine/ProcessEngineService!org.camunda.bpm.ProcessEngineService" auth="Container"
+              type="org.camunda.bpm.ProcessEngineService"
+              description="camunda BPM platform Process Engine Service"
+              factory="org.camunda.bpm.container.impl.jndi.ProcessEngineServiceObjectFactory" />
+
+    <Resource name="global/camunda-bpm-platform/process-engine/ProcessApplicationService!org.camunda.bpm.ProcessApplicationService" auth="Container"
+              type="org.camunda.bpm.ProcessApplicationService"
+              description="camunda BPM platform Process Application Service"
+              factory="org.camunda.bpm.container.impl.jndi.ProcessApplicationServiceObjectFactory" />
+  </GlobalNamingResources>
+
+  <Service name="Catalina">
+    <Executor name="tomcatThreadPool" namePrefix="catalina-exec-" maxThreads="150" minSpareThreads="1"/>
+
+    <Connector executor="tomcatThreadPool"
+               port="8080" protocol="HTTP/1.1"
+               connectionTimeout="20000" />
+    
+    <Engine name="Catalina" defaultHost="localhost">
+      <Host name="localhost"  appBase="webapps"
+            unpackWARs="true" autoDeploy="true">
+      </Host>
+      <Valve className="org.apache.catalina.valves.AccessLogValve" directory="logs"
+             prefix="access_log" suffix=".txt"
+             pattern="%h %l %u %t &quot;%r&quot; %s %b" />
+    </Engine>
+  </Service>
+</Server>

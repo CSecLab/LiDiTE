@@ -1,0 +1,4 @@
+export.db
+csv/*
+tex/*
+!tex/*.tex

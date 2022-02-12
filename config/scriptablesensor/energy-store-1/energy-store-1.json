@@ -1,0 +1,60 @@
+{
+	"name": "FDT:energy-store-1",
+	"features": {
+		"battery-pack": {
+			"type": "systemSimulator",
+			"stateRefreshIntervalSeconds": 1.0,
+			"integrator": {
+				"type": "Midpoint",
+				"stepSize": 0.1,
+				"checkTolerance": 1e-9,
+				"checkMaxTimeBetween": 1.0,
+				"checkMaxIterations": 1000
+			},
+			"system": {
+			  "A": [
+			  	[ 0 ]
+			  ],
+			  "B": [
+			  	[ 0.12667, -0.14 ]
+			  ]
+			},
+			"initialState": [ 70000.0 ],
+			"initialInputs": [ 0.0, 0.0 ],
+			"featureMappings": {
+				"state": {
+					"energy-stored": 0
+				},
+				"fromState": {
+					"charge-percent": {
+						"C": [
+							[ 0.00070922 ]
+						],
+						"D": [
+							[ 0.0, 0.0 ]
+						]
+					}
+				},
+				"fromJavaScript": {
+					"state": "getStateName"
+				}
+			},
+			"eventHandlers": {
+				"g-stop": [
+					{ "functionName": "batteryEmpty", "stateIndex": 0, "threshold":      0.0, "direction": "DECREASING" },
+					{ "functionName": "batteryFull",  "stateIndex": 0, "threshold": 141000.0, "direction": "INCREASING" }
+				]
+			},
+			"stepHandlers": [
+				{ "functionName": "stepCallback" },
+				{ "functionName": "fixedStepCallback", "every": 1.0 }
+			],
+			"intervalEndHandlers": [
+				"endHandler"
+			]
+		}
+	},
+	"messageCallbackFunctions": [
+		{ "functionName": "handleCommand", "topic": "command" }
+	]
+}

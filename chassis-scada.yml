@@ -1,0 +1,59 @@
+version: '3'
+services:
+  # Scada LTS + Camunda
+  scada:
+    depends_on: ["frontend", "scada_db"]
+    restart: always
+    build: ./camunda-scada-lts
+    image: registry.csec.dibris.unige.it:5000/fdt-camunda-scada-lts
+    environment:
+      DB_HOST: scada_db
+      DB_PORT: 3306
+      CAMUNDA_DB_NAME: camunda
+      CAMUNDA_DB_USER: camunda
+      CAMUNDA_DB_PASS: camunda
+      SCADA_DB_NAME: scadalts
+      SCADA_DB_USER: scadalts
+      SCADA_DB_PASS: scadalts
+      JAVA_OPTS: >-
+        -XX:+UseStringDeduplication
+        -Xms1m -XX:MinHeapFreeRatio=1 -XX:MaxHeapFreeRatio=20
+    networks:
+      a25_ind_enterprise:
+        ipv4_address: 172.16.10.100
+      zzz999_management:
+        ipv4_address: 10.0.0.21
+  # Database
+  scada_db:
+    image: mariadb:10.5.9
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+    networks:
+      a25_ind_enterprise:
+      zzz999_management:
+        ipv4_address: 10.0.0.22
+    volumes:
+      - scadalts_db:/var/lib/mysql
+  # Idempotency helpers
+  camunda_cron:
+    depends_on: ["camunda_deployer"]
+    restart: on-failure
+    build: ./camunda-scada-lts-cron
+    image: registry.csec.dibris.unige.it:5000/fdt-camunda-cron
+    environment:
+      CAMUNDA_HOST: scada
+      CAMUNDA_PORT: 8080
+    networks:
+      a25_ind_enterprise: {}
+  camunda_deployer:
+    depends_on: ["scada"]
+    restart: on-failure
+    build: ./camunda-scada-lts-deployer
+    environment:
+      CAMUNDA_HOST: scada
+      CAMUNDA_PORT: 8080
+    networks:
+      a25_ind_enterprise: {}
+
+volumes:
+  scadalts_db: {}

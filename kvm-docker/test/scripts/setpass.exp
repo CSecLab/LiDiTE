@@ -1,0 +1,23 @@
+#!/usr/bin/expect -f
+
+set timeout -1
+
+spawn nc 127.0.0.1 9999
+match_max 100000
+send -- "\r"
+expect "FortiGate-VM64-KVM login:"
+send -- "admin\r"
+expect -exact "Password:"
+send -- "\r"
+expect "New Password:"
+send -- "admin123\r"
+expect "Confirm Password:"
+send -- "admin123\r"
+#expect "Welcome"
+expect "FortiGate-VM64-KVM #"
+send -- "config system global\r"
+expect "FortiGate-VM64-KVM (global) #"
+send -- "set admin-scp enable\r"
+expect "FortiGate-VM64-KVM (global) #"
+send -- "end\r"
+expect "FortiGate-VM64-KVM #"

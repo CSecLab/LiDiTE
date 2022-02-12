@@ -1,0 +1,97 @@
+test -f /.configured && exit 0
+
+uci -q batch <<-EOF >/dev/null
+  set firewall.@include[0].reload='1'
+  
+  add firewall zone
+  set firewall.@zone[-1]=zone
+  set firewall.@zone[-1].name='ind'
+  set firewall.@zone[-1].network='ind'
+  set firewall.@zone[-1].input='ACCEPT'
+  set firewall.@zone[-1].output='ACCEPT'
+  set firewall.@zone[-1].forward='ACCEPT'
+  commit firewall.@zone[-1]
+
+  delete firewall.@zone[1].masq
+
+  # Forwarding between zones
+  add firewall forwarding
+  set firewall.@forwarding[-1].src='lan'
+  set firewall.@forwarding[-1].dest='wan'
+
+  add firewall forwarding
+  set firewall.@forwarding[-1].src='ind'
+  set firewall.@forwarding[-1].dest='wan'
+
+  add firewall forwarding
+  set firewall.@forwarding[-1].src='ind'
+  set firewall.@forwarding[-1].dest='lan'
+
+  add firewall forwarding
+  set firewall.@forwarding[-1].src='lan'
+  set firewall.@forwarding[-1].dest='ind'
+
+  add firewall rule
+  set firewall.@rule[-1].enabled=1  
+  set firewall.@rule[-1].src=wan
+  set firewall.@rule[-1].dest_port=80
+  set firewall.@rule[-1].proto=tcp
+  set firewall.@rule[-1].name='Allow web from WAN'
+  set firewall.@rule[-1].target=ACCEPT
+
+  # OSPF
+  add firewall rule
+  set firewall.@rule[-1].enabled=1  
+  set firewall.@rule[-1].src=wan
+  set firewall.@rule[-1].proto=89
+  set firewall.@rule[-1].name='Allow OSPF from Enterprise'
+  set firewall.@rule[-1].target=ACCEPT
+
+  # icmp
+  add firewall rule
+  set firewall.@rule[-1].enabled=1  
+  set firewall.@rule[-1].src=wan
+  set firewall.@rule[-1].dest='*'
+  set firewall.@rule[-1].proto=icmp
+  set firewall.@rule[-1].name='Allow ICMP'
+  set firewall.@rule[-1].target=ACCEPT
+
+  # access to industrial fw web management
+  add firewall rule
+  set firewall.@rule[-1].enabled=1  
+  set firewall.@rule[-1].src=wan
+  set firewall.@rule[-1].dest_ip='10.255.255.18'
+  set firewall.@rule[-1].dest_port='80'
+  set firewall.@rule[-1].dest='ind'
+  set firewall.@rule[-1].proto=tcp
+  set firewall.@rule[-1].name='Allow access to ind web mgmt'
+  set firewall.@rule[-1].target=ACCEPT
+
+  # access to scada
+  add firewall rule
+  set firewall.@rule[-1].enabled=1  
+  set firewall.@rule[-1].src=wan
+  set firewall.@rule[-1].dest_ip='172.16.10.100'
+  set firewall.@rule[-1].dest_port='8080'
+  set firewall.@rule[-1].dest='lan'
+  set firewall.@rule[-1].proto=tcp
+  set firewall.@rule[-1].name='Allow access to scada'
+  set firewall.@rule[-1].target=ACCEPT
+
+  # access to workflow
+  add firewall rule
+  set firewall.@rule[-1].enabled=1  
+  set firewall.@rule[-1].src=wan
+  set firewall.@rule[-1].dest_ip='172.16.10.101'
+  set firewall.@rule[-1].dest_port='80'
+  set firewall.@rule[-1].dest='lan'
+  set firewall.@rule[-1].proto=tcp
+  set firewall.@rule[-1].name='Allow access to workflow viewer'
+  set firewall.@rule[-1].target=ACCEPT
+  commit firewall
+
+EOF
+
+touch /.configured
+  
+exit 0  

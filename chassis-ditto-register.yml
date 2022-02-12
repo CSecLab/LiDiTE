@@ -1,0 +1,14 @@
+version: '3'
+services:
+  register:
+    build: ./ditto-register
+    image: registry.csec.dibris.unige.it:5000/fdt-ditto-register
+    depends_on: ["frontend"]
+    restart: on-failure
+    environment:
+      IT_UNIGE_FDT_DITTO_URL: ws://frontend
+      JAVA_OPTS: >-
+        -XX:+UseStringDeduplication
+        -Xms1m -XX:MinHeapFreeRatio=1 -XX:MaxHeapFreeRatio=20
+    networks:
+      a25_ind_enterprise: {}

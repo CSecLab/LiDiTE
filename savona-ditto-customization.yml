@@ -1,0 +1,23 @@
+version: '3'
+services:
+  # Ditto Frontend credentials
+  frontend:
+    environment:
+      FDT_PLAINTEXT_CREDENTIALS: 'y'
+      FDT_CREDENTIALS: >-
+        administrator:secret
+        backend:secret
+        camunda-people-simulator:secret
+        sun-simulator:secret
+        people-simulator:secret
+        energy-store-1:secret
+        gas-generator-1:secret
+        solar-panel-1:secret
+  # Register sensors
+  register:
+    environment:
+      IT_UNIGE_FDT_DITTO_USERNAME: administrator
+      IT_UNIGE_FDT_DITTO_PASSWORD: secret
+      IT_UNIGE_FDT_DEFINITIONS_PATH: /ditto-data
+    volumes:
+    - ./config/ditto:/ditto-data:ro
