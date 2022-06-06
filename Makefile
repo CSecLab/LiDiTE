@@ -54,6 +54,7 @@ endef
 # Build all container images
 build:
 	$(call docker_compose,$@)
+	docker-compose -f dovesnap/dovesnap.yml build
 
 # Start the Dovesnap network plugin
 dovesnap-up:
@@ -100,6 +101,7 @@ logsf: sysctls
 # Push images
 push:
 	$(call docker_compose,$@)
+	docker-compose -f dovesnap/dovesnap.yml push
 
 # Tweak OS settings
 sysctls:
