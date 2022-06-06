@@ -49,6 +49,7 @@ services:
     depends_on: ["scada"]
     restart: on-failure
     build: ./camunda-scada-lts-deployer
+    image: gabibbo97/camunda-scada-lts-deployer
     environment:
       CAMUNDA_HOST: scada
       CAMUNDA_PORT: 8080
