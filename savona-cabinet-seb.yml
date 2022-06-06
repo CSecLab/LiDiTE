@@ -3,7 +3,7 @@ services:
   # Cabinet
   cabinet_seb:
     build: ./cabinet
-    image: registry.csec.dibris.unige.it:5000/fdt-cabinet
+    image: gabibbo97/lidite-cabinet
     environment:
      - "ID=seb"
      - "BASE=1560"
@@ -20,7 +20,7 @@ services:
        ipv4_address: 10.0.0.54
   plc_seb:
     build: ./openplc
-    image: registry.csec.dibris.unige.it:5000/fdt-openplc
+    image: gabibbo97/lidite-openplc
     volumes:
     - ./config/openplc/trip.st:/data/main.st:ro
     - ./config/openplc/modbus-slaves/cabinet-seb.cfg:/data/mbconfig.cfg:ro
@@ -32,7 +32,7 @@ services:
   # Client
   client_seb:
     build: ./nothing
-    image: registry.csec.dibris.unige.it:5000/fdt-nothing
+    image: gabibbo97/lidite-nothing
     scale: 1
     network_mode: none
     labels:

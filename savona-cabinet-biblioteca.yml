@@ -3,7 +3,7 @@ services:
   # Cabinet
   cabinet_biblioteca:
     build: ./cabinet
-    image: registry.csec.dibris.unige.it:5000/fdt-cabinet
+    image: gabibbo97/lidite-cabinet
     environment:
      - "ID=biblioteca"
      - "BASE=1560"
@@ -21,7 +21,7 @@ services:
 
   plc_biblioteca:
     build: ./openplc
-    image: registry.csec.dibris.unige.it:5000/fdt-openplc
+    image: gabibbo97/lidite-openplc
     volumes:
     - ./config/openplc/trip.st:/data/main.st:ro
     - ./config/openplc/modbus-slaves/cabinet-biblioteca.cfg:/data/mbconfig.cfg:ro
@@ -34,7 +34,7 @@ services:
   # Clients
   client_biblioteca:
     build: ./nothing
-    image: registry.csec.dibris.unige.it:5000/fdt-nothing
+    image: gabibbo97/lidite-nothing
     scale: 1
     network_mode: none
     labels:

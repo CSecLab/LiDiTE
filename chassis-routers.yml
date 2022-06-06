@@ -2,7 +2,7 @@ version: '3'
 services:
   isp:
     build: ./openwrt
-    image: registry.csec.dibris.unige.it:5000/fdt-openwrt
+    image: gabibbo97/lidite-openwrt
     hostname: rt-isp
     volumes:
       - ./config/isp/bgpd.conf:/etc/quagga/bgpd.conf
@@ -28,7 +28,7 @@ services:
 
   perimeter:
     build: ./openwrt
-    image: registry.csec.dibris.unige.it:5000/fdt-openwrt
+    image: gabibbo97/lidite-openwrt
     hostname: fw-perimeter
     volumes:
       - ./config/perimeter/ospfd.conf:/etc/quagga/ospfd.conf
@@ -51,7 +51,7 @@ services:
 
   enterprise:
     build: ./openwrt
-    image: registry.csec.dibris.unige.it:5000/fdt-openwrt
+    image: gabibbo97/lidite-openwrt
     hostname: fw-enterprise
     volumes:
       - ./config/enterprise/ospfd.conf:/etc/quagga/ospfd.conf
@@ -72,7 +72,7 @@ services:
 
   industrial:
     build: ./openwrt
-    image: registry.csec.dibris.unige.it:5000/fdt-industrial
+    image: gabibbo97/lidite-openwrt
     hostname: fw-industrial
     volumes:
       - ./config/industrial/ospfd.conf:/etc/quagga/ospfd.conf

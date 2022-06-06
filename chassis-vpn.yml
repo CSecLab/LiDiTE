@@ -1,5 +1,6 @@
 services:
   chassis-vpn:
+    image: gabibbo97/lidite-vpn
     build:
       context: ./chassis-vpn
       dockerfile: Dockerfile

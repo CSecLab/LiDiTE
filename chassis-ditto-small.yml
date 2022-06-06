@@ -5,7 +5,7 @@ services:
     depends_on: ["mongodb"]
     build:
       context: ./ditto-binpack
-    image: registry.csec.dibris.unige.it:5000/fdt-ditto
+    image: gabibbo97/lidite-ditto
     restart: on-failure
     networks:
       a25_ind_enterprise: {}
@@ -25,7 +25,7 @@ services:
       args:
         #NGINX_VERSION: 1.19.10
         NGINX_VERSION: 1.21.4
-    image: registry.csec.dibris.unige.it:5000/fdt-ditto-nginx
+    image: gabibbo97/lidite-ditto-nginx
     depends_on: ["ditto"]
     networks:
       a25_ind_enterprise:

@@ -5,7 +5,7 @@ services:
     depends_on: ["frontend", "scada_db"]
     restart: always
     build: ./camunda-scada-lts
-    image: registry.csec.dibris.unige.it:5000/fdt-camunda-scada-lts
+    image: gabibbo97/lidite-camunda-scada-lts
     environment:
       DB_HOST: scada_db
       DB_PORT: 3306
@@ -39,7 +39,7 @@ services:
     depends_on: ["camunda_deployer"]
     restart: on-failure
     build: ./camunda-scada-lts-cron
-    image: registry.csec.dibris.unige.it:5000/fdt-camunda-cron
+    image: gabibbo97/lidite-camunda-cron
     environment:
       CAMUNDA_HOST: scada
       CAMUNDA_PORT: 8080

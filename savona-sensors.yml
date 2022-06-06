@@ -3,7 +3,7 @@ services:
   sun-simulator:
     depends_on: [ 'register' ]
     build: ./scriptablesensor
-    image: registry.csec.dibris.unige.it:5000/fdt-scriptablesensor
+    image: gabibbo97/lidite-scriptablesensor
     extra_hosts:
       frontend: 172.16.10.99
     environment:
@@ -24,7 +24,7 @@ services:
   people-simulator:
     depends_on: [ 'register' ]
     build: ./scriptablesensor
-    image: registry.csec.dibris.unige.it:5000/fdt-scriptablesensor
+    image: gabibbo97/lidite-scriptablesensor
     extra_hosts:
       frontend: 172.16.10.99
     environment:
@@ -40,7 +40,7 @@ services:
   energy-store-1:
     depends_on: [ 'register' ]
     build: ./scriptablesensor
-    image: registry.csec.dibris.unige.it:5000/fdt-scriptablesensor
+    image: gabibbo97/lidite-scriptablesensor
     extra_hosts:
       frontend: 172.16.10.99
     environment:
@@ -56,7 +56,7 @@ services:
   solar-panel-1:
     depends_on: [ 'register' ]
     build: ./scriptablesensor
-    image: registry.csec.dibris.unige.it:5000/fdt-scriptablesensor
+    image: gabibbo97/lidite-scriptablesensor
     extra_hosts:
       frontend: 172.16.10.99
     environment:
@@ -72,7 +72,7 @@ services:
   gas-generator-1:
     depends_on: [ 'register' ]
     build: ./scriptablesensor
-    image: registry.csec.dibris.unige.it:5000/fdt-scriptablesensor
+    image: gabibbo97/lidite-scriptablesensor
     extra_hosts:
       frontend: 172.16.10.99
     environment:

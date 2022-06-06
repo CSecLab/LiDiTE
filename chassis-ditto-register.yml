@@ -2,7 +2,7 @@ version: '3'
 services:
   register:
     build: ./ditto-register
-    image: registry.csec.dibris.unige.it:5000/fdt-ditto-register
+    image: gabibbo97/lidite-ditto-register
     depends_on: ["frontend"]
     restart: on-failure
     environment:

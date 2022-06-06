@@ -2,7 +2,7 @@ version: '3'
 services:
   docker_api_proxy:
     build: ./docker-api-proxy
-    image: registry.csec.dibris.unige.it:5000/fdt-docker-api-proxy
+    image: gabibbo97/lidite-docker-api-proxy
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:

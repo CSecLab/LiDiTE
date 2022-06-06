@@ -2,7 +2,7 @@ version: '3'
 services:
   workflows_viewer:
     build: ./camunda-scada-lts-workflow-viewer
-    image: registry.csec.dibris.unige.it:5000/fdt-camunda-workflow-viewer
+    image: gabibbo97/lidite-camunda-workflow-viewer
     networks:
       a25_ind_enterprise:
         ipv4_address: 172.16.10.101
