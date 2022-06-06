@@ -1,5 +1,5 @@
 # Compile
-FROM registry.fedoraproject.org/fedora-minimal:34 AS build
+FROM registry.fedoraproject.org/fedora-minimal:36 AS build
 RUN microdnf install -y \
   binutils \
   musl-gcc \
